@@ -184,7 +184,7 @@ public class RobotPlayer {
 
                 if (rc.canTurn()){
                     rc.turn(toCheese);
-                    break
+                    break;
                 }
             }
         }
