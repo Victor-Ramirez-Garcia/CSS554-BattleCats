@@ -3,6 +3,11 @@
 apply plugin: 'java'
 apply plugin: 'scala'
 
+// Optional override for local workspaces with synced build outputs.
+if (project.hasProperty('localBuildDir')) {
+    layout.buildDirectory.set(file(project.property('localBuildDir')))
+}
+
 // Compatibility version: Java 21
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -263,13 +268,15 @@ if (!(project.findProperty("onSaturn") ?: "false").toBoolean()) {
 task verify(type: JavaExec) {
   description 'Runs basic verifications that a package is valid.'
   group 'battlecode'
-  dependsOn build
+  dependsOn jar
 
   mainClass = 'battlecode.instrumenter.Verifier'
   classpath = sourceSets.main.runtimeClasspath
   args = [
-    project.findProperty("team") ?: "examplefuncsplayer",
-    project.findProperty("url") ?: sourceSets.main.output.classesDirs.getAsPath(),
+    project.findProperty("team") ?: "battlecats",
+    // Engine 1.2.6's folder verifier mishandles Windows path separators.
+    // JAR entries use forward slashes on every platform.
+    project.findProperty("url") ?: tasks.jar.archiveFile.get().asFile.absolutePath,
   ]
 }
 
@@ -297,6 +304,7 @@ def defaultReplayName = truncateString(project.property('teamA') + '-vs-' + proj
 def defaultReplayFile = 'matches/' + defaultReplayName + '.bc26'
 
 task runJavaLocal(type: JavaExec) {
+  dependsOn classes
   mainClass = 'battlecode.server.Main'
   classpath = sourceSets.main.runtimeClasspath
   args = ['-c=-']
@@ -421,5 +429,8 @@ task zipForSubmit(type: Zip) {
 
   archiveFileName = 'submission.zip'
   destinationDirectory = project.projectDir
-  from sourceSets.main.allSource
+  dependsOn classes
+  from('src') {
+    include 'battlecats/**/*.java'
+  }
 }
