@@ -1,53 +1,78 @@
-# Battlecode 2026 Scaffold - Java
+# BattleCats — Battlecode 2026
 
-This is the Battlecode 2026 Java scaffold, containing an `examplefuncsplayer`. Read https://play.battlecode.org/bc26/quick_start !
+Java bot for the course project, using **Battlecode engine 1.2.6** and the
+scaffold's separately versioned **client 1.0.7**. Start development branches from
+the latest `main` in the upstream team repository.
 
+## Run and check
 
-### Project Structure
+Install a 64-bit JDK 21 and set `JAVA_HOME` to its installation directory.
+Use the checked-in Gradle wrapper; a separate Gradle installation is unnecessary.
+The first run downloads Gradle and engine dependencies.
 
-- `README.md`
-    This file.
-- `build.gradle`
-    The Gradle build file used to build and run players.
-- `src/`
-    Player source code.
-- `test/`
-    Player test code.
-- `client/`
-    Contains the client. The proper executable can be found in this folder (don't move this!)
-- `build/`
-    Contains compiled player code and other artifacts of the build process. Can be safely ignored.
-- `matches/`
-    The output folder for match files.
-- `maps/`
-    The default folder for custom maps.
-- `gradlew`, `gradlew.bat`
-    The Unix (OS X/Linux) and Windows versions, respectively, of the Gradle wrapper. These are nifty scripts that you can execute in a terminal to run the Gradle build tasks of this project. If you aren't planning to do command line development, these can be safely ignored.
-- `gradle/`
-    Contains files used by the Gradle wrapper scripts. Can be safely ignored.
+```powershell
+.\gradlew.bat test verify
+.\gradlew.bat run
+.\gradlew.bat zipForSubmit
+```
 
-### How to get started
+On macOS/Linux, use `./gradlew` instead. `run` compiles automatically and plays
+`battlecats` against `examplefuncsplayer` on `DefaultSmall`. Replays are written
+under `matches/`. `build` also downloads the graphical replay client under
+`client/`; keep the client in that directory.
 
-You are free to directly edit `examplefuncsplayer`.
-However, we recommend you make a new bot by copying `examplefuncsplayer` to a new package under the `src` folder.
+```powershell
+.\gradlew.bat listMaps
+.\gradlew.bat run -PteamB=testfuncsplayer -Pmaps=DefaultSmall
+.\gradlew.bat run -PoutputVerbose=true
+```
 
-### Useful Commands
+The submission task compiles and packages only Java sources under one top-level
+`battlecats/` folder in `submission.zip`. It does not upload the ZIP.
+Keep `engine_version.txt` at 1.2.6 unless the team agrees to change it.
 
-- `./gradlew build`
-    Compiles your player
-- `./gradlew run`
-    Runs a game with the settings in gradle.properties
-- `./gradlew update`
-    Update configurations for the latest version -- run this often
-- `./gradlew zipForSubmit`
-    Create a submittable zip file
-- `./gradlew tasks`
-    See what else you can do!
+## Sprint 1 Baby Rat baseline
 
+- `src/battlecats/RobotPlayer.java` runs the turn loop and selects the behavior
+  for each unit type. Each robot keeps its own behavior instance and memory.
+- `BabyRat.java` scans for a friendly king near spawn, explores, remembers
+  visible cheese, picks it up, returns to a friendly king, transfers the whole
+  load, and resumes searching. Targets are rechecked when visible. A missing
+  king is forgotten and a nearby replacement can be discovered.
+- `Navigation.java` turns toward the desired move and follows obstacles when
+  a direct move is blocked. Exploration uses changing waypoints and scans.
+- `RatKing.java` is a small stationary spawning baseline, producing up to four
+  babies per king while reserving cheese. It makes collector testing possible;
+  the team's fuller king strategy can replace it independently.
+- `src/examplefuncsplayer/` and `src/testfuncsplayer/` remain available as local
+  opponents. The classmate's test-player implementation is preserved.
 
-### Configuration 
+Baby Rats do **not** receive a global list of cheese. In v1.2.6 their sensing
+cone is 90 degrees with radius squared 20 (about 4.47 tiles), and cheese is
+discovered through visible map information. Walls do not occlude that cone.
+The collector remembers a target outside its current field of view, then checks
+whether cheese is still there when it becomes visible again.
 
-Look at `gradle.properties` for project-wide configuration.
+This is a basic collector, not an optimal path planner. It does not implement
+combat, traps, king promotion, global map sharing, or cat avoidance. Carried
+cheese slows movement, so babies return after each pickup. If a king disappears,
+the collector searches for another; rapidly moving kings can make delivery less
+reliable than the stationary baseline. Collection and delivery use the same
+logic in cooperation and backstabbing.
 
-If you are having any problems with the default client, please report to teh devs and
-feel free to set the `compatibilityClient` configuration to `true` to download a different version of the client.
+## Sources and build support
+
+- [Upstream team repository](https://github.com/Victor-Ramirez-Garcia/CSS554-BattleCats)
+- [Official scaffold](https://github.com/battlecode/battlecode26-scaffold)
+- [Game specification 1.2.6](https://releases.battlecode.org/specs/battlecode26/1.2.6/specs.pdf)
+- [API documentation 1.2.6](https://releases.battlecode.org/javadoc/battlecode26/1.2.6/index.html)
+
+The Gradle 8.10 wrapper JAR and distribution use verified official checksums.
+`verify` checks the compiled JAR to avoid the engine's Windows folder-path issue.
+For synced-directory build problems, use a writable local output directory:
+
+```powershell
+.\gradlew.bat "-PlocalBuildDir=$env:TEMP\battlecats-local-build" test verify run
+```
+
+The upstream AGPL license remains in `LICENSE`.
