@@ -1,7 +1,10 @@
-package examplefuncsplayer;
+package testfuncsplayer;
 
 import battlecode.common.*;
+import battlecode.world.control.RobotControlProvider;
 
+import java.lang.constant.DirectMethodHandleDesc;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -23,7 +26,7 @@ public class RobotPlayer {
      * import at the top of this file. Here, we *seed* the RNG with a constant number (6147); this makes sure
      * we get the same sequence of numbers every time this code is run. This is very useful for debugging!
      */
-    static final Random rng = new Random(6147);
+    static final Random rand = new Random(6147);
 
     /** Array containing all the possible movement directions. */
     static final Direction[] directions = {
@@ -37,6 +40,17 @@ public class RobotPlayer {
         Direction.NORTHWEST,
     };
 
+    public static enum State {
+        INITIALIZE,
+        FIND_CHEESE,
+        RETURN_TO_KING,
+        EXPLORE_AND_ATTACK,
+        //BUILD_TRAPS
+    }
+    public static State currentState = State.INITIALIZE;
+    public static int numRatsSpawned = 0;
+    public static int turnsSinceCarry = 0;
+
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
      * It is like the main function for your robot. If this method returns, the robot dies!
@@ -46,22 +60,44 @@ public class RobotPlayer {
      **/
     @SuppressWarnings("unused")
     public static void run(RobotController rc) throws GameActionException {
-        // Hello world! Standard output is very useful for debugging.
-        // Everything you say here will be directly viewable in your terminal when you run a match!
         System.out.println("I'm alive");
 
-        // You can also use indicators to save debug notes in replays.
         rc.setIndicatorString("Hello world!");
 
         while (true) {
-            // This code runs during the entire lifespan of the robot, which is why it is in an infinite
-            // loop. If we ever leave this loop and return from run(), the robot dies! At the end of the
-            // loop, we call Clock.yield(), signifying that we've done everything we want to do.
+             turnCount += 1;  // We have now been alive for one more turn!
 
-            turnCount += 1;  // We have now been alive for one more turn!
+             try {
+                //Rat King
+                if(rc.getType().isRatKingType()){
+//                    runRatKing(rc);
+                } 
+                //Baby Rat
+                else {
+                    turnsSinceCarry++;
 
-            // Try/catch blocks stop unhandled exceptions, which cause your robot to explode.
-            try {
+                    switch (currentState){
+                        case INITIALIZE:
+                            if (rc.getRoundNum() < 30 || rc.getCurrentRatCost() <= 10){
+                                currentState = State.FIND_CHEESE;
+                            } else {
+                                currentState = State.EXPLORE_AND_ATTACK;
+                            }
+                            //what if it's after turn 30 or RatCost is above 10?
+                            break;
+                        case FIND_CHEESE:
+//                            runFindCheese(rc);
+                            break;
+
+                        case RETURN_TO_KING:
+//                            runReturnToKing(rc);
+                            break;
+                        case EXPLORE_AND_ATTACK:
+//                            runExploreAndAttack(rc);
+                            break;
+
+                    }
+                }
                 // The same run() function is called for every robot on your team, even if they are
                 // different types. Here, we separate the control depending on the UnitType, so we can
                 // use different strategies on different robots. If you wish, you are free to rewrite
@@ -79,7 +115,7 @@ public class RobotPlayer {
                 } else {
                     System.out.println("Couldn't move forward on turn " + turnCount + " at location " + rc.getLocation() + " facing " + rc.getDirection());
                     // If we can't move forward, try to turn a random direction.
-                    int randomDirection = rng.nextInt(8);
+                    int randomDirection = rand.nextInt(8);
                     Direction dir = directions[randomDirection];
 
                     if (rc.canTurn(dir)) {
@@ -107,4 +143,94 @@ public class RobotPlayer {
 
         // Your code should never reach here (unless it's intentional)! Self-destruction imminent...
     }
+
+    public static void moveRandom(RobotController rc) throws GameActionException {
+        MapLocation forwardLoc = rc.adjacentLocation(rc.getDirection());
+        if(rc.canMoveForward()){
+            rc.moveForward();
+        } else{
+            Direction random = directions[rand.nextInt(directions.length)];
+            if (rc.canTurn()){
+                rc.turn(random);
+            }
+        }
+    }
+
+    public static void runRatKing(RobotController rc) throws GameActionException{
+        int currentCost = rc.getCurrentRatCost();
+
+        if (currentCost <= 10 || rc.getAllCheese() > currentCost + 2500){
+            MapLocation[] potentialSpawnLocations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
+
+            for (MapLocation loc : potentialSpawnLocations){
+                if (rc.canBuildRat(loc)){
+                    rc.buildRat(loc);
+                    break;
+                }
+            }
+        }
+        moveRandom(rc);
+        rc.writeSharedArray(0,rc.getLocation().x);
+        rc.writeSharedArray(1,rc.getLocation().y);
+        
+    }
+
+    public static void runFindCheese(RobotController rc) throws GameActionException{
+        MapInfo[] nearbyInfos = rc.senseNearbyMapInfos();
+
+        for(MapInfo info : nearbyInfos){
+            if (info.getCheeseAmount() > 0){
+                Direction toCheese = rc.getLocation().directionTo(info.getMapLocation());
+
+                if (rc.canTurn()){
+                    rc.turn(toCheese);
+                    break
+                }
+            }
+        }
+        for (Direction dir : directions){
+            MapLocation loc = rc.getLocation().add(dir);
+
+            if(rc.canPickUpCheese(loc)){
+                rc.pickUpCheese(loc);
+                
+                if (rc.getRawCheese() >= 10) {
+                    currentState = State.RETURN_TO_KING;
+                }
+            }
+        }
+    }
+
+    public static void runReturnToKing(RobotController rc) throws GameActionException{
+        MapLocation kingLoc = new MapLocation(rc.readSharedArray(0), rc.readSharedArray(1));
+        Direction toKing = rc.getLocation().directionTo(kingLoc);
+        MapLocation nextLoc = rc.getLocation().add(toKing);
+
+        if (rc.canTurn()){
+            rc.turn(toKing);
+        }
+        if (rc.canMove(toKing)){
+            rc.move(toKing);
+        }
+        int rawCheese = rc.getRawCheese();
+        if (rawCheese == 0){
+            currentState = State.FIND_CHEESE;
+        }
+        if (rc.canSenseLocation(kingLoc)){
+            RobotInfo[] kingLocations = rc.senseNearbyRobots(kingLoc, 8, rc.getTeam());
+
+            for(RobotInfo robotInfo : kingLocations){
+                if (robotInfo.getType().isRatKingType()){
+                    MapLocation actualKingLoc = robotInfo.getLocation();
+
+                    if (rc.canTransferCheese(actualKingLoc, rawCheese)){
+                        rc.transferCheese(actualKingLoc, rawCheese);
+                        currentState = State.FIND_CHEESE;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
 }
