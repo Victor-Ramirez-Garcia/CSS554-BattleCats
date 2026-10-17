@@ -1,8 +1,8 @@
 # BattleCats — Battlecode 2026
 
 Java bot for the course project, using **Battlecode engine 1.2.6** and the
-scaffold's separately versioned **client 1.0.7**. Development branches in the
-personal fork use the classmate repository's `main` as the upstream reference.
+scaffold's separately versioned **client 1.0.7**. Start development branches from
+the latest `main` in the upstream team repository.
 
 ## Run and check
 
