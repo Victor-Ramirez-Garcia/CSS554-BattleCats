@@ -38,6 +38,12 @@ class SimReportTests(unittest.TestCase):
                 saved_rows = list(csv.DictReader(handle))
         return markdown, saved_rows
 
+    def pr_report(self, rows, expected, manifest=None):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            write_report(output, rows, manifest or {}, expected)
+            return (output / "pr-summary.md").read_text(encoding="utf-8")
+
     def test_early_end_is_not_counted_as_strict_round_1000(self):
         rows = pair(end=300) + pair(end=300, checkpoint="COMMON_1000")
         rows += pair(case="farm-B", side="B", end=2000, delivered=(200, 100))
@@ -140,6 +146,98 @@ class SimReportTests(unittest.TestCase):
         report, _ = self.report([], 2, dict(packages=dict(candidate="mybot", baseline="battlecats")))
         self.assertIn("Candidate simulation package: mybot", report)
         self.assertIn("Baseline simulation package: battlecats", report)
+
+    def test_pr_note_records_pinned_versions_and_requires_rationale_and_review(self):
+        manifest = dict(
+            baseline_ref="upstream/main", baseline_commit="a" * 40,
+            candidate_ref="origin/codex/collector", candidate_commit="b" * 40,
+            versions=dict(baseline=dict(subject="Fix king food", date="2026-10-18"),
+                          candidate=dict(subject="Collect more cheese", date="2026-10-19")),
+            maps=["farm"], preset="custom", engine_version="1.2.6", label="Carry threshold 80",
+            cases=[dict(case="farm-A", side="A"), dict(case="farm-B", side="B")],
+            jar_hashes=dict(baseline="c" * 64, candidate="d" * 64))
+        note = self.pr_report(pair(), 2, manifest)
+        self.assertIn("Baseline: upstream/main; commit " + "a" * 40, note)
+        self.assertIn("Candidate: origin/codex/collector; commit " + "b" * 40, note)
+        self.assertIn("Fix king food; 2026-10-18", note)
+        self.assertIn("Collect more cheese; 2026-10-19", note)
+        self.assertNotIn("UNCOMMITTED", note)
+        self.assertIn("**INCOMPLETE: 1/2 complete match pairs.**", note)
+        self.assertIn("candidate starting sides: A, B", note)
+        self.assertIn("Experiment: Carry threshold 80", note)
+        self.assertIn("both snapshots compiled and passed the bot verifier", note)
+        self.assertIn("Unit-test status is not recorded", note)
+        self.assertIn("Pending: describe the intended change", note)
+        self.assertIn("Pending: independent review", note)
+        summary, _ = self.report(pair(), 2, manifest)
+        self.assertIn("Experiment: Carry threshold 80", summary)
+        self.assertIn("Baseline version: Fix king food; 2026-10-18", summary)
+
+    def test_pr_note_worktree_snapshot_does_not_treat_head_as_candidate_commit(self):
+        manifest = dict(baseline_ref="upstream/main", baseline_commit="a" * 40,
+                        candidate_ref="WORKTREE", candidate_head="b" * 40,
+                        working_tree_sha256="c" * 64,
+                        versions=dict(candidate=dict(kind="worktree", subject="Saved local files")))
+        note = self.pr_report(pair(), 1, manifest)
+        self.assertIn("**UNCOMMITTED snapshot — exploratory, not a final PR comparison**", note)
+        self.assertIn("WORKTREE; source snapshot SHA-256 " + "c" * 64, note)
+        self.assertNotIn("commit " + "b" * 40, note)
+        self.assertIn("Saved local files", note)
+        self.assertIn("compilation/verifier completion is not recorded for both snapshots", note)
+
+    def test_pr_note_failed_or_cancelled_last_match_is_not_a_complete_run(self):
+        for status in ("FAILED", "CANCELLED"):
+            with self.subTest(status=status):
+                note = self.pr_report(pair(), 1, dict(status=status, error="stopped | <details>"))
+                self.assertIn(f"**{status}: 1/1 complete match pairs.**", note)
+                self.assertIn("not a completed comparison", note)
+                self.assertIn("partial totals", note.lower())
+                self.assertIn("stopped &#124; &lt;details&gt;", note)
+                self.assertNotIn("both snapshots compiled and passed", note)
+
+    def test_pr_note_does_not_hide_map_regression_under_overall_gain_or_coin_flip(self):
+        rows = pair(case="good-A", delivered=(500, 100), reason="MORE_POINTS")
+        rows += pair(case="farm-A", delivered=(40, 100), reason="COIN_FLIP")
+        rows += pair(case="good-A", checkpoint="ROUND_1000", delivered=(120, 100))
+        rows += pair(case="farm-A", checkpoint="COMMON_1000", delivered=(30, 80))
+        note = self.pr_report(rows, 2, dict(preset="custom", maps=["good", "farm"]))
+        self.assertIn("| Final | 2/2 | 540 | 200 | +170.0% |", note)
+        self.assertIn("| Fixed round 1000 | 1/2 | 120 | 100 | +20.0% |", note)
+        self.assertIn("| farm | 1 | 40 | 100 | -60.0% |", note)
+        self.assertIn("MORE_POINTS: 1/0/0", note)
+        self.assertIn("COIN_FLIP: 1/0/0", note)
+        self.assertIn("Coin-flip outcomes: **1**", note)
+        self.assertIn("Delivered cheese is not the engine's match points", note)
+        self.assertIn("All reported checkpoints were in cooperation", note)
+        self.assertIn("does not establish behavior after a PvP transition", note)
+        self.assertIn("[summary.md](summary.md)", note)
+        self.assertIn("[results.csv](results.csv)", note)
+
+    def test_pr_note_zero_baseline_and_empty_results_do_not_claim_gain(self):
+        note = self.pr_report(pair(delivered=(10, 0)), 1)
+        self.assertIn("| Final | 1/1 | 10 | 0 | n/a (baseline 0) |", note)
+        self.assertNotIn("inf%", note)
+        empty = self.pr_report([], 2)
+        self.assertIn("**INCOMPLETE: 0/2 complete match pairs.**", empty)
+        self.assertIn("no full-match or PvP coverage is assumed", empty)
+        self.assertNotIn("All reported checkpoints were in cooperation", empty)
+
+    def test_pr_note_build_claim_requires_two_real_jar_hashes(self):
+        for hashes in (True, ["candidate", "baseline"], {"candidate": "a" * 64},
+                       {"candidate": "pass", "baseline": "pass"}):
+            with self.subTest(hashes=hashes):
+                note = self.pr_report(pair(), 1, dict(jar_hashes=hashes))
+                self.assertNotIn("both snapshots compiled and passed", note)
+
+    def test_round_1000_pair_after_match_end_is_excluded(self):
+        rows = pair(end=300) + pair(end=300, checkpoint="ROUND_1000")
+        note = self.pr_report(rows, 1)
+        self.assertIn("| Fixed round 1000 | 0/1 | 0 | 0 | n/a (baseline 0) |", note)
+
+    def test_running_status_is_not_promoted_before_runner_finishes(self):
+        note = self.pr_report(pair(), 1, dict(status="RUNNING"))
+        self.assertIn("**RUNNING: 1/1 complete match pairs.**", note)
+        self.assertIn("not a completed comparison", note)
 
 
 if __name__ == "__main__":

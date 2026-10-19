@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 import csv
 import os
 from pathlib import Path
+import re
 from urllib.parse import quote
 
 
@@ -51,7 +52,7 @@ def _pairs(rows: list[dict], checkpoint: str) -> list[tuple[dict, dict]]:
         final_round = _number(candidate, "FinalRound")
         if checkpoint == "FINAL" and round_number != final_round:
             continue
-        if checkpoint == "ROUND_1000" and round_number != 1000:
+        if checkpoint == "ROUND_1000" and (round_number != 1000 or final_round < 1000):
             continue
         if checkpoint == "COMMON_1000" and round_number != min(1000, final_round):
             continue
@@ -89,10 +90,17 @@ def _wins(pairs: list[tuple[dict, dict]]) -> Counter:
     return Counter(_winner(pair) for pair in pairs)
 
 
-def _identity(manifest: dict, role: str) -> str:
+def _version(manifest: dict, role: str) -> dict:
     nested = manifest.get(role, {})
     if not isinstance(nested, dict):
         nested = {}
+    versions = manifest.get("versions", {})
+    version = versions.get(role, {}) if isinstance(versions, dict) else {}
+    return {**nested, **version} if isinstance(version, dict) else nested
+
+
+def _identity(manifest: dict, role: str) -> str:
+    nested = _version(manifest, role)
     ref = manifest.get(role + "_ref") or nested.get("ref")
     commit = manifest.get(role + "_commit") or nested.get("commit") or nested.get("sha")
     snapshot = (manifest.get(role + "_snapshot_sha256") or nested.get("snapshot_sha256")
@@ -106,6 +114,28 @@ def _identity(manifest: dict, role: str) -> str:
     if snapshot:
         parts.append("source snapshot SHA-256 " + str(snapshot))
     return _escape("; ".join(parts) if parts else "not recorded")
+
+
+def _version_label(manifest: dict, role: str) -> str:
+    version = _version(manifest, role)
+    return _escape("; ".join(str(version[key]) for key in ("subject", "date")
+                             if version.get(key)))
+
+
+def _run_status(summary: dict, manifest: dict) -> str:
+    status = str(manifest.get("status", "")).upper()
+    return status if status in ("FAILED", "CANCELLED", "RUNNING", "PREPARED") else (
+        "Complete" if summary["complete"] else "INCOMPLETE")
+
+
+def _pr_identity(manifest: dict, role: str) -> str:
+    version = _version(manifest, role)
+    commit = manifest.get(role + "_commit") or version.get("commit") or version.get("sha")
+    identity = _identity(manifest, role)
+    if role == "candidate" and not commit:
+        identity = "**UNCOMMITTED snapshot — exploratory, not a final PR comparison**; " + identity
+    label = _version_label(manifest, role)
+    return identity + (f"; {label}" if label else "")
 
 
 def _metadata(manifest: dict, case: str) -> dict:
@@ -169,8 +199,86 @@ def print_summary(rows: list[dict], expected_cases: int) -> None:
           f"unknown {wins['unknown']}. See summary.md for end rounds and win reasons.")
 
 
+def _write_pr_summary(output: Path, rows: list[dict], manifest: dict, summary: dict) -> None:
+    """Draft evidence for a PR; strategy rationale and review remain human decisions."""
+    final, strict = summary["final"], summary["strict"]
+    expected, complete = summary["expected"], len(final)
+    status = _run_status(summary, manifest)
+    maps = manifest.get("maps") or sorted({str(row["Map"]) for row in rows})
+    cases = manifest.get("cases", [])
+    planned_sides = {str(case["side"]) for case in cases
+                     if isinstance(case, dict) and case.get("side")} if isinstance(cases, list) else set()
+    sides = sorted(planned_sides or {str(row["CandidateSide"]) for row in rows})
+    lines = ["# Simulation evidence for PR", "",
+             f"**{status}: {complete}/{expected} complete match pairs.**", "",
+             f"Baseline: {_pr_identity(manifest, 'baseline')}", "",
+             f"Candidate: {_pr_identity(manifest, 'candidate')}", "",
+             f"Preset: {_escape(manifest.get('preset', 'not recorded'))}; "
+             f"engine: {_escape(manifest.get('engine_version', 'not recorded'))}; "
+             f"candidate starting sides: {_escape(', '.join(sides) or 'not recorded')}", "",
+             f"Maps: {_escape(', '.join(str(name) for name in maps) or 'not recorded')}", ""]
+    if manifest.get("label"):
+        lines[2:2] = [f"Experiment: {_escape(manifest['label'])}", ""]
+    if manifest.get("error"):
+        lines.extend([f"Run error: {_escape(manifest['error'])}", ""])
+    if status != "Complete":
+        lines.extend(["This run is not a completed comparison. Partial totals do not establish an overall improvement; "
+                      "missing, duplicate, or inconsistent pairs are excluded.", ""])
+    lines.extend(["| Delivered cheese | Complete pairs | Candidate | Baseline | Change |",
+                  "| --- | ---: | ---: | ---: | ---: |"])
+    for label, pairs in (("Final", final), ("Fixed round 1000", strict)):
+        candidate, baseline = _totals(pairs)
+        lines.append(f"| {label} | {len(pairs)}/{expected} | {candidate:,} | {baseline:,} | {_change(candidate, baseline)} |")
+    lines.extend(["", "Delivered cheese is not the engine's match points. Final totals use actual end rounds; "
+                  "fixed round 1000 excludes earlier endings. A zero baseline has no defined percentage change.", ""])
+    wins = summary["wins"]
+    reasons = defaultdict(Counter)
+    for pair in final:
+        reasons[str(pair[0].get("WinType", "unknown"))][_winner(pair)] += 1
+    reason_labels = []
+    for reason in sorted(reasons):
+        counts = reasons[reason]
+        reason_labels.append(f"{_escape(reason)}: {counts['candidate']}/{counts['baseline']}/{counts['unknown']}")
+    coin_flips = sum(sum(counts.values()) for reason, counts in reasons.items() if "COIN" in reason.upper())
+    lines.extend([f"Wins (candidate/baseline/unknown): **{wins['candidate']}/{wins['baseline']}/{wins['unknown']}** "
+                  f"across {complete} completed matches. Reasons (same order): "
+                  + ("; ".join(reason_labels) or "none recorded") + ".", "",
+                  f"Coin-flip outcomes: **{coin_flips}**; included in wins and do not demonstrate a strategy advantage.", ""])
+    by_map = defaultdict(list)
+    for pair in final:
+        by_map[str(pair[0]["Map"])].append(pair)
+    regressions = [(name, pairs, *_totals(pairs)) for name, pairs in sorted(by_map.items())
+                   if _totals(pairs)[0] < _totals(pairs)[1]]
+    lines.extend(["## Per-map regressions", ""])
+    if regressions:
+        lines.extend(["| Map | Complete pairs | Candidate | Baseline | Change |",
+                      "| --- | ---: | ---: | ---: | ---: |"])
+        for name, pairs, candidate, baseline in regressions:
+            lines.append(f"| {_escape(name)} | {len(pairs)} | {candidate:,} | {baseline:,} | {_change(candidate, baseline)} |")
+    else:
+        lines.append("No lower final-delivery total was observed among completed map pairs. This is not proof of general improvement.")
+    lines.extend(["", "Full per-map results, starting-side coverage, end rounds, replays and logs: "
+                  "[summary.md](summary.md); all recorded checkpoints: [results.csv](results.csv).", ""])
+    hashes = manifest.get("jar_hashes")
+    verified = isinstance(hashes, dict) and all(
+        isinstance(hashes.get(role), str) and re.fullmatch(r"[0-9a-fA-F]{64}", hashes[role])
+        for role in ("candidate", "baseline"))
+    lines.append("Build evidence: both snapshots compiled and passed the bot verifier (both JAR hashes recorded). "
+                 "Unit-test status is not recorded here." if verified else
+                 "Build evidence: compilation/verifier completion is not recorded for both snapshots. "
+                 "Unit-test status is not recorded here.")
+    phases = {str(row.get("Cooperation", "")).lower() for row in rows}
+    phase_note = ("All reported checkpoints were in cooperation; this does not establish behavior after a PvP transition."
+                  if phases == {"true"} else
+                  "Cooperation flags are checkpoint samples in results.csv; no full-match or PvP coverage is assumed.")
+    lines.extend(["", f"Limits: these selected maps, sides and one matchup do not establish an optimal strategy. {phase_note}", "",
+                  "## Change and rationale", "", "Pending: describe the intended change and explain any strategy constants.", "",
+                  "## Code review", "", "Pending: independent review of scope, code and these results; this generated note is not approval.", ""])
+    (output / "pr-summary.md").write_text("\n".join(lines), encoding="utf-8", newline="\n")
+
+
 def write_report(output: Path, rows: list[dict], manifest: dict, expected_cases: int) -> None:
-    """Write results.csv and summary.md without changing sources or saved replays."""
+    """Write results.csv, summary.md and pr-summary.md without changing sources or saved replays."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     fields = list(dict.fromkeys(FIELDS + [key for row in rows for key in row]))
@@ -182,14 +290,15 @@ def write_report(output: Path, rows: list[dict], manifest: dict, expected_cases:
     summary = _summary(rows, expected_cases)
     final = summary["final"]
     complete = len(final)
-    status = "Complete" if summary["complete"] else "INCOMPLETE"
-    run_status = str(manifest.get("status", "")).upper()
-    if run_status in ("FAILED", "CANCELLED"):
-        status = run_status
+    status = _run_status(summary, manifest)
     lines = ["# Simulation comparison", "", f"**{status}: {complete}/{expected_cases} complete match pairs.**", "",
              f"Baseline: {_identity(manifest, 'baseline')}", "",
              f"Candidate: {_identity(manifest, 'candidate')}", ""]
-    for key, label in (("preset", "Preset"), ("engine_version", "Engine")):
+    for role in ("baseline", "candidate"):
+        label = _version_label(manifest, role)
+        if label:
+            lines.extend([f"{role.title()} version: {label}", ""])
+    for key, label in (("label", "Experiment"), ("preset", "Preset"), ("engine_version", "Engine")):
         if manifest.get(key) is not None:
             lines.extend([f"{label}: {_escape(manifest[key])}", ""])
     for role in ("candidate", "baseline"):
@@ -276,3 +385,4 @@ def write_report(output: Path, rows: list[dict], manifest: dict, expected_cases:
     lines.extend(["", "Use the saved source identities and the same maps, seeds, sides, and engine version when comparing runs. "
                   "Differences in strategy outside the intended change can affect both deliveries and wins.", ""])
     (output / "summary.md").write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    _write_pr_summary(output, rows, manifest, summary)

@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -193,7 +194,7 @@ class BaselineSelectionTests(unittest.TestCase):
                 result = simulate.baseline_revision(None, offline)
 
         self.assertEqual((expected_ref, commit), result)
-        self.assertEqual(("rev-parse", "--verify", expected_ref + "^{commit}"), git.call_args.args)
+        self.assertEqual(("rev-parse", "--verify", "--end-of-options", expected_ref + "^{commit}"), git.call_args.args)
         if offline:
             command.assert_not_called()
         else:
@@ -212,6 +213,67 @@ class BaselineSelectionTests(unittest.TestCase):
         with patch.object(simulate, "git", return_value=b""):
             with self.assertRaisesRegex((ValueError, RuntimeError), "(?i)(remote|baseline)"):
                 simulate.baseline_revision(None, False)
+
+
+class VersionIntegrationTests(unittest.TestCase):
+    def test_full_remote_ref_is_recognized_without_confusing_local_branch(self):
+        self.assertEqual("origin", simulate.remote_for_ref("refs/remotes/origin/experiment", ["origin"]))
+        self.assertIsNone(simulate.remote_for_ref("refs/heads/origin/experiment", ["origin"]))
+        self.assertIsNone(simulate.remote_for_ref("refs/tags/origin/version", ["origin"]))
+
+    def test_candidate_remote_is_refreshed_before_resolving_its_commit(self):
+        with patch.object(simulate, "git", return_value=b"origin\nupstream\n"):
+            with patch.object(simulate, "command") as command:
+                with patch.object(simulate, "resolve_commit", return_value="a" * 40) as resolve:
+                    result = simulate.candidate_revision("refs/remotes/origin/iteration", "upstream/main", False)
+        self.assertEqual("a" * 40, result)
+        command.assert_called_once_with(["git", "fetch", "origin", "--prune"])
+        resolve.assert_called_once_with("refs/remotes/origin/iteration", "candidate")
+
+    def test_same_remote_already_fetched_for_baseline_is_not_fetched_twice(self):
+        with patch.object(simulate, "git", return_value=b"origin\nupstream\n"):
+            with patch.object(simulate, "command") as command:
+                with patch.object(simulate, "resolve_commit", return_value="a" * 40):
+                    simulate.candidate_revision("upstream/iteration", "refs/remotes/upstream/main", False)
+        command.assert_not_called()
+
+    def test_offline_candidate_does_not_refresh_remote(self):
+        with patch.object(simulate, "git", return_value=b"origin\nupstream\n"):
+            with patch.object(simulate, "command") as command:
+                with patch.object(simulate, "resolve_commit", return_value="a" * 40):
+                    simulate.candidate_revision("origin/iteration", "upstream/main", True)
+        command.assert_not_called()
+
+    def test_picked_versions_preserve_the_displayed_commits(self):
+        entries = [dict(ref="refs/heads/iteration", commit="a" * 40),
+                   dict(ref="refs/remotes/upstream/main", commit="b" * 40)]
+        args = SimpleNamespace(select=True, list_versions=False, candidate_ref=None,
+                               baseline_ref=None, offline=True)
+        with patch.object(simulate, "git", return_value=b"origin\nupstream\n"):
+            with patch.object(simulate, "version_catalog", return_value=entries):
+                with patch.object(simulate, "choose_versions", return_value=(entries[0]["ref"], entries[1]["ref"])):
+                    simulate.select_version_options(args, simulate.argparse.ArgumentParser())
+        self.assertEqual("a" * 40, args.selected_versions["candidate"]["commit"])
+        self.assertEqual("b" * 40, args.selected_versions["baseline"]["commit"])
+
+    def test_version_listing_does_not_require_sources_or_engine(self):
+        argv = ["simulate.py", "--list-versions", "--offline"]
+        with patch.object(sys, "argv", argv), patch.object(simulate, "git", return_value=b"origin\n"):
+            with patch.object(simulate, "version_catalog", return_value=[]), patch.object(simulate, "print_versions"):
+                with patch.object(simulate, "load_sources") as sources, patch.object(simulate, "locate_engine") as engine:
+                    self.assertEqual(0, simulate.main())
+        sources.assert_not_called()
+        engine.assert_not_called()
+
+    def test_cancelled_picker_never_starts_loading_sources(self):
+        argv = ["simulate.py", "--select", "--offline"]
+        with patch.object(sys, "argv", argv), patch.object(simulate, "git", return_value=b"origin\n"):
+            with patch.object(simulate, "version_catalog", return_value=[dict(ref="main", commit="a" * 40)]):
+                with patch.object(simulate, "choose_versions", side_effect=ValueError("Version selection cancelled")):
+                    with patch.object(simulate, "load_sources") as sources:
+                        with self.assertRaisesRegex(ValueError, "cancelled"):
+                            simulate.main()
+        sources.assert_not_called()
 
 
 if __name__ == "__main__":

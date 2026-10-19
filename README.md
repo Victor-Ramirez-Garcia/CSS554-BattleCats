@@ -66,6 +66,48 @@ both starting sides** (four matches). The bots keep their original Java packages
 and run from separate JARs. Each source snapshot is compiled and verified.
 All matches run locally using the Battlecode engine, rather than on a website.
 
+### Choose a branch or earlier iteration
+
+List available versions or use the numbered picker for both bots:
+
+```powershell
+.\gradlew.bat simVersions
+.\gradlew.bat sim -PsimSelect=true --console=plain
+```
+
+The list shows local branches, remote branches, tags, and the latest 12 reachable
+commits, with dates, commit messages, and commit IDs. Listing and selection
+refresh configured remotes unless `-PsimOffline=true` is set. Tags are labels
+available locally, not a live list of releases on GitHub; offline remote refs
+may also be outdated.
+
+Choose the **candidate** you want to evaluate, then the **baseline** to compare
+against. Candidate `0` means saved local Java edits; Enter accepts the displayed
+default (saved edits versus main). A branch, tag, or commit choice uses its
+committed files and excludes unsaved/uncommitted edits. Selection keeps your
+current branch and files in place. EOF or Ctrl+C cancels rather than choosing
+a version silently.
+
+You can also name versions directly, including in scripts or terminals without
+interactive input:
+
+```powershell
+.\gradlew.bat sim -PsimCandidate=origin/my-feature -PsimBaseline=upstream/main
+.\gradlew.bat sim -PsimCandidate=HEAD~1 "-PsimLabel=Previous iteration against main"
+```
+
+Use an existing branch name from `simVersions`; `my-feature` is a placeholder.
+Without an `upstream` remote, use `origin/main`. Local and remote branches can
+differ; the list distinguishes them. Exact refs such as
+`refs/heads/my-feature`, `refs/remotes/origin/my-feature`, and
+`refs/tags/my-experiment` disambiguate similarly named versions.
+
+Menu numbers and branch tips can change. Every run records the selected commit
+IDs, dates, and descriptions. To repeat that exact iteration later, pass those
+commit IDs to `simCandidate` and `simBaseline`. For saved edits, the manifest
+records a source snapshot hash instead; commit the candidate before a final PR
+comparison.
+
 ### Choose maps
 
 Engine 1.2.6 includes **43 predefined maps**. The presets select a small suite:
@@ -102,7 +144,7 @@ map with the run so later edits do not alter its recorded input.
 ```
 
 Each run creates a fresh `matches/sim-.../` folder with `summary.md`,
-`results.csv`, source snapshots, exact baseline/candidate identities in
+`pr-summary.md`, `results.csv`, source snapshots, exact baseline/candidate identities in
 `manifest.json`, and `.bc26` replays plus logs for each match. Load a replay in
 the Battlecode graphical client's replay viewer to inspect a run. The summary
 shows delivered cheese, wins and their reasons, end rounds, and map regressions.
@@ -122,10 +164,25 @@ completed cases and are labeled incomplete/failed rather than a successful suite
 5. Save another edit and rerun. Each run gets a new folder. Before proposing a
    PR, commit the candidate and use `-PsimCandidate=HEAD` for exact revisions.
 
+### Commit and PR notes
+
+Use a descriptive message for each meaningful commit: what behavior changed
+and why. A push simply publishes commits; it does not need a separate changelog
+entry. Keep experiments on their own branch and make unrelated strategy changes
+separate comparisons.
+
+For a PR, use the generated `pr-summary.md` as the starting point, add the
+change's rationale and actual review/test status, and retain the exact tested
+commit IDs, map coverage, and known regressions. The note labels saved edits,
+partial/failed runs, and pending review explicitly; generating it does not
+approve the code. If code changes after the comparison, test the new candidate
+before attaching the old results to it. The PR template prompts for this evidence.
+
 Other options: `-PsimBaseline=origin/main` chooses a baseline ref;
 `-PsimBaselinePackage=examplefuncsplayer` selects its bot;
 `-PsimOutput=matches/my-test` chooses a **new** output folder;
 `-PsimPrepareOnly=true` only snapshots, compiles, and verifies;
+`"-PsimLabel=Short experiment description"` names a run in its reports;
 `-PsimOffline=true` skips fetching and uses the cached baseline, which may be
 outdated. Saved snapshots include all Java sources under `src/`, so unrelated
 Java compile errors also stop a run. This mode does not compile Scala bots.

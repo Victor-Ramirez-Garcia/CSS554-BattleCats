@@ -285,13 +285,8 @@ task verify(type: JavaExec) {
 
 //////// Running ////////
 
-tasks.register('sim') {
-  description 'Compares saved local Java changes against fetched main on both starting sides.'
-  group 'battlecode'
-
-  // The runner compiles and verifies its own two source snapshots. Depending on
-  // classes/test here would compile the live workspace before it is snapshotted.
-  doLast {
+// Shared entry point keeps version listing independent of engine downloads.
+def runSimulation = { boolean listOnly ->
     boolean windows = System.getProperty('os.name').toLowerCase().contains('windows')
     def override = project.findProperty('simPython')
     def choices = override ? [[override.toString()]] :
@@ -341,23 +336,27 @@ tasks.register('sim') {
     if (pythonCommand == null) {
       throw new GradleException('Python 3.10+ was not found. Install Python or pass -PsimPython=/path/to/python.')
     }
-    def engine = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
-      it.moduleVersion.id.group == 'org.battlecode' && it.name == 'battlecode26-java'
-    }?.file
-    if (engine == null) {
-      throw new GradleException('The Battlecode engine dependency could not be resolved.')
+    def argv = pythonCommand + [file('tools/simulate.py').absolutePath]
+    if (listOnly) {
+      argv.add('--list-versions')
+    } else {
+      def engine = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
+        it.moduleVersion.id.group == 'org.battlecode' && it.name == 'battlecode26-java'
+      }?.file
+      if (engine == null) {
+        throw new GradleException('The Battlecode engine dependency could not be resolved.')
+      }
+      argv.addAll(['--java-home', System.getProperty('java.home'), '--engine-jar', engine.absolutePath,
+        '--preset', (project.findProperty('simPreset') ?: 'quick').toString()])
     }
-    def argv = pythonCommand + [file('tools/simulate.py').absolutePath,
-      '--java-home', System.getProperty('java.home'), '--engine-jar', engine.absolutePath,
-      '--preset', (project.findProperty('simPreset') ?: 'quick').toString()]
     ['simBaseline': '--baseline-ref', 'simCandidate': '--candidate-ref',
      'simPackage': '--package', 'simBaselinePackage': '--baseline-package',
-     'simOutput': '--output'].each { propertyName, option ->
-      if (project.hasProperty(propertyName)) {
+     'simOutput': '--output', 'simLabel': '--label'].each { propertyName, option ->
+      if (!listOnly && project.hasProperty(propertyName)) {
         argv.addAll([option, project.property(propertyName).toString()])
       }
     }
-    if (project.hasProperty('simMaps')) {
+    if (!listOnly && project.hasProperty('simMaps')) {
       def maps = project.property('simMaps').toString().split(',').collect { it.trim() }
       if (maps.any { it.isEmpty() }) {
         throw new GradleException('simMaps must be a comma-separated list of map names.')
@@ -365,16 +364,29 @@ tasks.register('sim') {
       argv.add('--maps')
       argv.addAll(maps)
     }
-    ['simOffline': '--offline', 'simPrepareOnly': '--prepare-only'].each { propertyName, option ->
-      if ((project.findProperty(propertyName) ?: 'false').toString().toBoolean()) {
+    ['simOffline': '--offline', 'simPrepareOnly': '--prepare-only', 'simSelect': '--select'].each { propertyName, option ->
+      if ((!listOnly || propertyName == 'simOffline') &&
+          (project.findProperty(propertyName) ?: 'false').toString().toBoolean()) {
         argv.add(option)
       }
     }
     project.exec {
       workingDir projectDir
       commandLine argv
+      standardInput System.in
     }
-  }
+}
+
+tasks.register('sim') {
+  description 'Compares saved local Java changes or selected versions on both starting sides.'
+  group 'battlecode'
+  doLast { runSimulation(false) }
+}
+
+tasks.register('simVersions') {
+  description 'Lists available bot branches, tags, and recent commits without compiling.'
+  group 'battlecode'
+  doLast { runSimulation(true) }
 }
 
 task downloadPyPackage(type: Exec) {

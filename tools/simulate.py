@@ -22,6 +22,7 @@ import uuid
 
 from sim_runtime import OPEN_PACKAGES, REPLAY_READER, locate_engine, locate_jdk
 from sim_report import print_summary, write_report
+from sim_versions import choose_versions, print_versions, version_catalog
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,6 +103,21 @@ def save_manifest(output: Path, manifest: dict) -> None:
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
+def remote_for_ref(ref: str, remotes: list[str]) -> str | None:
+    if ref.startswith("refs/remotes/"):
+        ref = ref[len("refs/remotes/"):]
+    elif ref.startswith("refs/"):
+        return None
+    return next((name for name in remotes if ref.startswith(name + "/")), None)
+
+
+def resolve_commit(ref: str, role: str) -> str:
+    try:
+        return git("rev-parse", "--verify", "--end-of-options", ref + "^{commit}").decode().strip()
+    except RuntimeError as error:
+        raise ValueError(f"Cannot resolve {role} {ref!r}. List versions with simVersions or fetch its remote.") from error
+
+
 def baseline_revision(ref: str | None, offline: bool) -> tuple[str, str]:
     remotes = git("remote").decode().split()
     if ref is None:
@@ -110,15 +126,56 @@ def baseline_revision(ref: str | None, offline: bool) -> tuple[str, str]:
             raise ValueError("No main remote found. Add origin/upstream or pass --baseline-ref main --offline.")
         ref = remote + "/main"
     else:
-        remote = next((name for name in remotes if ref.startswith(name + "/")), None)
+        remote = remote_for_ref(ref, remotes)
     if remote and not offline:
         print(f"Fetching {remote} for the baseline...", flush=True)
         command(["git", "fetch", remote, "--prune"])
-    try:
-        commit = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
-    except RuntimeError as error:
-        raise ValueError(f"Cannot resolve baseline {ref!r}. Fetch main or choose --baseline-ref.") from error
-    return ref, commit
+    return ref, resolve_commit(ref, "baseline")
+
+
+def candidate_revision(ref: str | None, baseline_ref: str, offline: bool) -> str | None:
+    if ref is None:
+        return None
+    remotes = git("remote").decode().split()
+    remote = remote_for_ref(ref, remotes)
+    if remote and not offline and remote != remote_for_ref(baseline_ref, remotes):
+        print(f"Fetching {remote} for the candidate...", flush=True)
+        command(["git", "fetch", remote, "--prune"])
+    return resolve_commit(ref, "candidate")
+
+
+def version_info(ref: str | None, commit: str | None) -> dict:
+    if commit is None:
+        return dict(ref="WORKTREE", commit=None, kind="saved local files",
+                    subject="Saved Java edits; see the source snapshot hash", date=None)
+    date, subject = git("show", "--no-patch", "--format=%cs%x00%s", commit).decode("utf-8").strip().split("\0", 1)
+    return dict(ref=ref, commit=commit, date=date, subject=subject)
+
+
+def select_version_options(args, parser) -> bool:
+    """Refresh a read-only catalog; selection never checks out another branch."""
+    if not (args.select or args.list_versions):
+        return False
+    if args.select and (args.candidate_ref or args.baseline_ref):
+        parser.error("Use --select to choose both versions, or specify refs without --select.")
+    remotes = git("remote").decode().split()
+    if not args.offline:
+        for remote in remotes:
+            print(f"Fetching {remote} for the version list...", flush=True)
+            command(["git", "fetch", remote, "--prune"])
+    entries = version_catalog(ROOT)
+    if args.list_versions:
+        print_versions(entries)
+        return True
+    default_remote = next((name for name in ("upstream", "origin") if name in remotes), None)
+    default_baseline = default_remote + "/main" if default_remote else "main"
+    args.candidate_ref, args.baseline_ref = choose_versions(entries, default_baseline)
+    args.selected_versions = {
+        role: next(entry for entry in entries if entry["ref"] == ref)
+        for role, ref in (("candidate", args.candidate_ref), ("baseline", args.baseline_ref))
+        if ref is not None
+    }
+    return False
 
 
 def compile_bot(output: Path, role: str, sources: dict[str, str], package: str,
@@ -216,6 +273,10 @@ def main() -> int:
     parser.add_argument("--baseline-package", default="battlecats")
     parser.add_argument("--baseline-ref", help="Default: upstream/main, or origin/main without upstream")
     parser.add_argument("--candidate-ref", help="Compare a committed ref; default snapshots saved local Java files")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--list-versions", action="store_true", help="List branches, tags, and recent commits without compiling")
+    selection.add_argument("--select", action="store_true", help="Choose candidate and baseline from a numbered terminal menu")
+    parser.add_argument("--label", help="Short description of this experiment, saved with its results")
     parser.add_argument("--offline", action="store_true", help="Use the cached baseline without fetching")
     parser.add_argument("--java-home")
     parser.add_argument("--engine-jar")
@@ -223,13 +284,22 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=180, help="Maximum seconds per match")
     parser.add_argument("--prepare-only", action="store_true", help="Snapshot, compile and verify without matches")
     args = parser.parse_args()
+    if select_version_options(args, parser):
+        return 0
     maps = validate_maps(args.maps or PRESETS[args.preset])
     if args.timeout <= 0:
         parser.error("timeout must be positive")
     if (ROOT / "engine_version.txt").read_text().strip() != "1.2.6":
         raise ValueError("This replay reader supports engine 1.2.6; update it before changing engine versions.")
-    baseline_ref, baseline_commit = baseline_revision(args.baseline_ref, args.offline)
-    candidate_commit = git("rev-parse", "--verify", args.candidate_ref + "^{commit}").decode().strip() if args.candidate_ref else None
+    # The picker already refreshed every configured remote. Resolve its choices
+    # once without fetching a second time or moving the working checkout.
+    if args.select:
+        baseline_ref = args.baseline_ref
+        baseline_commit = args.selected_versions["baseline"]["commit"]
+        candidate_commit = args.selected_versions.get("candidate", {}).get("commit")
+    else:
+        baseline_ref, baseline_commit = baseline_revision(args.baseline_ref, args.offline)
+        candidate_commit = candidate_revision(args.candidate_ref, baseline_ref, args.offline)
     for commit in filter(None, (baseline_commit, candidate_commit)):
         if git("show", commit + ":engine_version.txt").decode().strip() != "1.2.6":
             raise ValueError(f"Revision {commit[:12]} uses a different engine version.")
@@ -252,6 +322,9 @@ def main() -> int:
         "status": "RUNNING", "created_utc": datetime.now(timezone.utc).isoformat(),
         "baseline_ref": baseline_ref, "baseline_commit": baseline_commit,
         "candidate_ref": args.candidate_ref or "WORKTREE", "candidate_commit": candidate_commit,
+        "label": args.label,
+        "versions": {"candidate": version_info(args.candidate_ref, candidate_commit),
+                     "baseline": version_info(baseline_ref, baseline_commit)},
         "candidate_head": git("rev-parse", "HEAD").decode().strip(),
         "working_tree_sha256": source_hash(sources["candidate"]) if candidate_commit is None else None,
         "source_hashes": {role: source_hash(files) for role, files in sources.items()},
@@ -267,7 +340,7 @@ def main() -> int:
     try:
         runner = output / "runner"
         runner.mkdir()
-        for filename in ("simulate.py", "sim_report.py", "sim_runtime.py"):
+        for filename in ("simulate.py", "sim_report.py", "sim_runtime.py", "sim_versions.py"):
             original = Path(__file__).parent / filename
             shutil.copyfile(original, runner / filename)
             manifest["runner_hashes"][filename] = sha_file(original)
