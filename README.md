@@ -4,6 +4,16 @@ Java bot for the course project, using **Battlecode engine 1.2.6** and the
 scaffold's separately versioned **client 1.0.7**. Start development branches from
 the latest `main` in the upstream team repository.
 
+## Development workflow
+
+Use the public team main as the reference and keep development branches local
+or on your personal fork. The simulation mode fetches main without pushing any
+branches. It uses upstream/main when configured, otherwise origin/main.
+
+Before proposing a PR, commit the candidate, run the full comparison with
+`-PsimCandidate=HEAD`, and have a separate reviewer inspect the code and results.
+See [AGENTS.md](AGENTS.md) for this project's development and review guidance.
+
 ## Run and check
 
 Install a 64-bit JDK 21 and set `JAVA_HOME` to its installation directory.
@@ -30,6 +40,56 @@ under `matches/`. `build` also downloads the graphical replay client under
 The submission task compiles and packages only Java sources under one top-level
 `battlecats/` folder in `submission.zip`. It does not upload the ZIP.
 Keep `engine_version.txt` at 1.2.6 unless the team agrees to change it.
+
+## Easy simulations
+
+Save your Java edits and run the quick comparison:
+
+```powershell
+.\gradlew.bat sim
+```
+
+Requires Python 3.10+ and the same JDK 21 used above; no extra Python packages
+are needed. Gradle finds Python automatically, or you can specify an interpreter
+with `"-PsimPython=C:\path\to\python.exe"`. On macOS/Linux use `./gradlew`.
+
+The default snapshots saved local Java files, including new untracked files
+under `src/`; no commit is needed for an experiment. It fetches `upstream/main`
+as the baseline, or `origin/main` when no `upstream` remote exists, and runs
+`battlecats` against that revision on **DefaultSmall and DefaultMedium, with
+both starting sides** (four matches). The bots keep their original Java packages
+and run from separate JARs. Each source snapshot is compiled and verified.
+
+```powershell
+# Full comparison: seven maps, both sides (14 matches).
+.\gradlew.bat sim -PsimPreset=full
+
+# Choose maps and the local bot package you are developing.
+.\gradlew.bat sim -PsimPackage=mybot -PsimMaps=DefaultSmall,cheesefarm
+
+# Final comparison: commit changes first, then test that exact revision.
+.\gradlew.bat sim -PsimPreset=full -PsimCandidate=HEAD
+```
+
+Each run creates a fresh `matches/sim-.../` folder with `summary.md`,
+`results.csv`, source snapshots, exact baseline/candidate identities in
+`manifest.json`, and `.bc26` replays plus logs for each match. Load a replay in
+the Battlecode graphical client's replay viewer to inspect a run. The summary
+shows delivered cheese, wins and their reasons, end rounds, and map regressions.
+Final totals can reflect different match durations; strict round 1,000 results
+include only matches that reach that round. Failed or interrupted runs retain
+completed cases and are labeled incomplete/failed rather than a successful suite.
+
+Other options: `-PsimBaseline=origin/main` chooses a baseline ref;
+`-PsimBaselinePackage=examplefuncsplayer` selects its bot;
+`-PsimOutput=matches/my-test` chooses a **new** output folder;
+`-PsimPrepareOnly=true` only snapshots, compiles, and verifies;
+`-PsimOffline=true` skips fetching and uses the cached baseline, which may be
+outdated. Saved snapshots include all Java sources under `src/`, so unrelated
+Java compile errors also stop a run. This mode does not compile Scala bots.
+Runs save their artifacts locally and refresh remote refs when fetching main.
+For direct use and additional options, run
+`python tools/simulate.py --help`.
 
 ## Sprint 1 Baby Rat baseline
 
