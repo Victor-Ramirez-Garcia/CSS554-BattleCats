@@ -5,17 +5,32 @@ import battlecode.common.*;
 /** Sprint 1 collector: discover cheese, pick it up, return, and deliver. */
 public class BabyRat {
     private static final int TARGET_TIMEOUT = 80;
+    private static final int RETURN_CHEESE = 80;
+    private static final int MAX_FORAGE_TURNS = 60;
     private final Navigation navigation;
+    private final int returnThreshold;
+    private final int maxForageTurns;
     private MapLocation kingLocation;
     private MapLocation cheeseTarget;
     private int targetRound;
     private MapLocation ignoredCheese;
     private int ignoreUntilRound;
-    private int homeScans;
+    private int firstCargoRound = -1;
+    private boolean returning;
     private int deliveries;
 
     public BabyRat(int robotId) {
+        this(robotId, RETURN_CHEESE, MAX_FORAGE_TURNS);
+    }
+
+    /** Configurable collection policy for local experiments. Threshold is a soft limit per pickup. */
+    public BabyRat(int robotId, int returnThreshold, int maxForageTurns) {
+        if (returnThreshold <= 0 || maxForageTurns <= 0) {
+            throw new IllegalArgumentException("Collection threshold and timeout must be positive");
+        }
         navigation = new Navigation(robotId);
+        this.returnThreshold = returnThreshold;
+        this.maxForageTurns = maxForageTurns;
     }
 
     public void takeTurn(RobotController rc) throws GameActionException {
@@ -23,22 +38,28 @@ public class BabyRat {
             return;
         }
         rememberKing(rc);
-        // A newborn inherits its king's facing; the king can initially be behind it.
-        if (kingLocation == null && homeScans < 4) {
-            rc.setIndicatorString("SCAN_HOME");
-            if (rc.canTurn()) {
-                rc.turn(rc.getDirection().rotateRight().rotateRight());
-                homeScans++;
+        int rawCheese = rc.getRawCheese();
+        if (rawCheese == 0) {
+            firstCargoRound = -1;
+            returning = false;
+        } else {
+            if (firstCargoRound < 0) {
+                firstCargoRound = rc.getRoundNum();
             }
-            return;
+            // Unload a small batch when already beside a king; no extra trip is needed.
+            if (deliver(rc)) {
+                return;
+            }
+            returning |= rawCheese >= returnThreshold
+                    || rc.getRoundNum() - firstCargoRound >= maxForageTurns;
         }
-        if (rc.getRawCheese() > 0) {
+        if (returning) {
             returnCheese(rc);
             return;
         }
         findCheese(rc);
         if (cheeseTarget == null) {
-            rc.setIndicatorString("SEARCH delivered=" + deliveries);
+            rc.setIndicatorString("SEARCH raw=" + rc.getRawCheese() + " delivered=" + deliveries);
             navigation.explore(rc);
         } else {
             face(rc, cheeseTarget);
@@ -46,7 +67,7 @@ public class BabyRat {
                 navigation.moveToward(rc, cheeseTarget);
                 pickUp(rc);
             }
-            rc.setIndicatorString((rc.getRawCheese() > 0 ? "RETURN" : "COLLECT")
+            rc.setIndicatorString("COLLECT raw=" + rc.getRawCheese()
                     + " delivered=" + deliveries);
         }
     }
@@ -86,6 +107,9 @@ public class BabyRat {
     private boolean pickUp(RobotController rc) throws GameActionException {
         if (cheeseTarget != null && rc.canPickUpCheese(cheeseTarget)) {
             rc.pickUpCheese(cheeseTarget);
+            if (firstCargoRound < 0 && rc.getRawCheese() > 0) {
+                firstCargoRound = rc.getRoundNum();
+            }
             cheeseTarget = null;
             return true;
         }
@@ -119,6 +143,8 @@ public class BabyRat {
         for (MapLocation part : UnitType.RAT_KING.getAllTypeLocations(kingLocation)) {
             if (rc.canTransferCheese(part, amount)) {
                 rc.transferCheese(part, amount);
+                firstCargoRound = -1;
+                returning = false;
                 deliveries++;
                 rc.setIndicatorString("DELIVER amount=" + amount + " delivered=" + deliveries);
                 System.out.println("DELIVER rat=" + rc.getID() + " cheese=" + amount);
@@ -129,6 +155,11 @@ public class BabyRat {
     }
 
     private void rememberKing(RobotController rc) throws GameActionException {
+        MapLocation shared = SharedKingLocations.nearest(rc);
+        // A stopped heartbeat invalidates a cached broadcast even outside our vision.
+        if (shared != null || SharedKingLocations.hasPublishedLocations(rc)) {
+            kingLocation = shared;
+        }
         if (kingLocation != null && rc.canSenseLocation(kingLocation)) {
             RobotInfo king = rc.senseRobotAtLocation(kingLocation);
             if (king == null || king.getTeam() != rc.getTeam() || king.getType() != UnitType.RAT_KING) {

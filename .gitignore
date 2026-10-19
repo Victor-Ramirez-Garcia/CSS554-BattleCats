@@ -40,6 +40,8 @@ tmp/
 *.tmp
 *.bak
 *.swp
+__pycache__/
+*.pyc
 *~.nib
 local.properties
 .settings/
