@@ -43,7 +43,12 @@ Keep `engine_version.txt` at 1.2.6 unless the team agrees to change it.
 
 ## Easy simulations
 
-Save your Java edits and run the quick comparison:
+Use a checkout containing `tools/simulate.py` and the `sim` Gradle task. These
+commands require the testing-mode changes. Without them, use the original
+`run` task for individual matches.
+
+From the project folder containing `gradlew.bat`, save your Java edits and run
+the quick comparison:
 
 ```powershell
 .\gradlew.bat sim
@@ -59,6 +64,31 @@ as the baseline, or `origin/main` when no `upstream` remote exists, and runs
 `battlecats` against that revision on **DefaultSmall and DefaultMedium, with
 both starting sides** (four matches). The bots keep their original Java packages
 and run from separate JARs. Each source snapshot is compiled and verified.
+All matches run locally using the Battlecode engine, rather than on a website.
+
+### Choose maps
+
+Engine 1.2.6 includes **43 predefined maps**. The presets select a small suite:
+
+| Preset | Maps | Matches |
+| --- | --- | ---: |
+| `quick` | `DefaultSmall`, `DefaultMedium` | 4 |
+| `full` | `DefaultSmall`, `DefaultMedium`, `DefaultLarge`, `cheesefarm`, `minimaze`, `safelycontained`, `pipes` | 14 |
+
+Both starting sides run on each map. **`full` means the expanded seven-map
+suite, not all 43 maps**; it is not an exhaustive tournament evaluation. The
+original `gradlew run` command defaults to `DefaultSmall` only.
+
+List every available map, then select names with `simMaps`:
+
+```powershell
+.\gradlew.bat listMaps
+.\gradlew.bat sim -PsimMaps=DefaultLarge,minimaze,pipes
+```
+
+For a custom map, place `MyMap.map26` in the project's `maps/` folder and use
+`-PsimMaps=MyMap` (without the extension). The simulator saves a copy of that
+map with the run so later edits do not alter its recorded input.
 
 ```powershell
 # Full comparison: seven maps, both sides (14 matches).
@@ -80,6 +110,18 @@ Final totals can reflect different match durations; strict round 1,000 results
 include only matches that reach that round. Failed or interrupted runs retain
 completed cases and are labeled incomplete/failed rather than a successful suite.
 
+### Edit, run, inspect, repeat
+
+1. Edit and save files under `src/battlecats/`, or select your own package with
+   `-PsimPackage=mybot`. Unsaved editor changes are not included.
+2. Run `sim` for a quick check, or `sim -PsimPreset=full` for the seven-map suite.
+3. Open `summary.md` in the new output folder printed by the command. Check the
+   completion status, deliveries and win reasons, then each map's regressions.
+4. Open a case's `.bc26` replay in the Battlecode client's replay viewer to see
+   its behavior; use the matching `.log` for errors or bot messages.
+5. Save another edit and rerun. Each run gets a new folder. Before proposing a
+   PR, commit the candidate and use `-PsimCandidate=HEAD` for exact revisions.
+
 Other options: `-PsimBaseline=origin/main` chooses a baseline ref;
 `-PsimBaselinePackage=examplefuncsplayer` selects its bot;
 `-PsimOutput=matches/my-test` chooses a **new** output folder;
@@ -91,7 +133,10 @@ Runs save their artifacts locally and refresh remote refs when fetching main.
 For direct use and additional options, run
 `python tools/simulate.py --help`.
 
-## Sprint 1 Baby Rat baseline
+## Team bot at this branch's main baseline
+
+The testing-tools branch starts from team main `f6cb13a`; it does not include
+the separate experimental 80-cheese/60-round Baby Rat policy.
 
 - `src/battlecats/RobotPlayer.java` runs the turn loop and selects the behavior
   for each unit type. Each robot keeps its own behavior instance and memory.
@@ -101,9 +146,10 @@ For direct use and additional options, run
   king is forgotten and a nearby replacement can be discovered.
 - `Navigation.java` turns toward the desired move and follows obstacles when
   a direct move is blocked. Exploration uses changing waypoints and scans.
-- `RatKing.java` is a small stationary spawning baseline, producing up to four
-  babies per king while reserving cheese. It makes collector testing possible;
-  the team's fuller king strategy can replace it independently.
+- `RatKing.java` stays stationary and spawns when cheese exceeds the current
+  rat cost plus its 100-cheese reserve, with no four-baby lifetime cap. It
+  publishes its x/y coordinates in shared slots 0/1; this Baby Rat still
+  discovers kings through local sensing.
 - `src/examplefuncsplayer/` and `src/testfuncsplayer/` remain available as local
   opponents. The classmate's test-player implementation is preserved.
 
@@ -115,7 +161,8 @@ whether cheese is still there when it becomes visible again.
 
 This is a basic collector, not an optimal path planner. It does not implement
 combat, traps, king promotion, global map sharing, or cat avoidance. Carried
-cheese slows movement, so babies return after each pickup. If a king disappears,
+cheese slows movement. This baseline starts returning when cargo is strictly
+greater than 20; two 20-cheese piles normally trigger a return at 40. If a king disappears,
 the collector searches for another; rapidly moving kings can make delivery less
 reliable than the stationary baseline. Collection and delivery use the same
 logic in cooperation and backstabbing.
