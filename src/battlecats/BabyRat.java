@@ -5,6 +5,7 @@ import battlecode.common.*;
 /** Sprint 1 collector: discover cheese, pick it up, return, and deliver. */
 public class BabyRat {
     private static final int TARGET_TIMEOUT = 80;
+    private static final int carryAmount = 20;
     private final Navigation navigation;
     private MapLocation kingLocation;
     private MapLocation cheeseTarget;
@@ -32,7 +33,7 @@ public class BabyRat {
             }
             return;
         }
-        if (rc.getRawCheese() > 0) {
+        if (rc.getRawCheese() > carryAmount) {
             returnCheese(rc);
             return;
         }
