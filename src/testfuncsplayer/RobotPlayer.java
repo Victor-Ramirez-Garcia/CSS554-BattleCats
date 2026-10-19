@@ -70,7 +70,7 @@ public class RobotPlayer {
              try {
                 //Rat King
                 if(rc.getType().isRatKingType()){
-                    runRatKing(rc);
+//                    runRatKing(rc);
                 } 
                 //Baby Rat
                 else {
