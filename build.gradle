@@ -1,3 +1,5 @@
+import java.util.concurrent.TimeUnit
+
 //////// General configuration ////////
 
 apply plugin: 'java'
@@ -282,6 +284,110 @@ task verify(type: JavaExec) {
 
 
 //////// Running ////////
+
+// Shared entry point keeps version listing independent of engine downloads.
+def runSimulation = { boolean listOnly ->
+    boolean windows = System.getProperty('os.name').toLowerCase().contains('windows')
+    def override = project.findProperty('simPython')
+    def choices = override ? [[override.toString()]] :
+      (windows ? [['py', '-3'], ['python'], ['python3']] : [['python3'], ['python'], ['py', '-3']])
+    List<String> pythonCommand = null
+    for (choice in choices) {
+      String executable = choice[0]
+      File resolved = null
+      if (override || executable.contains('/') || executable.contains('\\')) {
+        resolved = project.file(executable)
+      } else {
+        for (directory in (System.getenv('PATH') ?: '').split(File.pathSeparator)) {
+          File candidate = new File(directory.replace('"', ''), executable + (windows ? '.exe' : ''))
+          if (candidate.isFile() && (windows || candidate.canExecute())) {
+            // Windows Store aliases can open a store window instead of Python.
+            if (windows && candidate.absolutePath.toLowerCase().contains('\\microsoft\\windowsapps\\')) {
+              continue
+            }
+            resolved = candidate
+            break
+          }
+        }
+      }
+      if (resolved == null || !resolved.isFile() ||
+          (windows && resolved.absolutePath.toLowerCase().contains('\\microsoft\\windowsapps\\'))) {
+        continue
+      }
+      def trial = [resolved.absolutePath] + choice.drop(1)
+      try {
+        def probe = new ProcessBuilder(trial + ['-c',
+          'import sys; print(sys.version.split()[0]); sys.exit(0 if sys.version_info >= (3, 10) else 1)'])
+          .directory(projectDir).redirectErrorStream(true).start()
+        if (!probe.waitFor(10, TimeUnit.SECONDS)) {
+          probe.destroyForcibly()
+          continue
+        }
+        String detected = probe.inputStream.getText('UTF-8').trim()
+        if (probe.exitValue() == 0) {
+          pythonCommand = trial
+          logger.quiet("Simulation Python: ${detected}")
+          break
+        }
+      } catch (IOException ignored) {
+        // Try the next real interpreter rather than a shell or store alias.
+      }
+    }
+    if (pythonCommand == null) {
+      throw new GradleException('Python 3.10+ was not found. Install Python or pass -PsimPython=/path/to/python.')
+    }
+    def argv = pythonCommand + [file('tools/simulate.py').absolutePath]
+    if (listOnly) {
+      argv.add('--list-versions')
+    } else {
+      def engine = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
+        it.moduleVersion.id.group == 'org.battlecode' && it.name == 'battlecode26-java'
+      }?.file
+      if (engine == null) {
+        throw new GradleException('The Battlecode engine dependency could not be resolved.')
+      }
+      argv.addAll(['--java-home', System.getProperty('java.home'), '--engine-jar', engine.absolutePath,
+        '--preset', (project.findProperty('simPreset') ?: 'quick').toString()])
+    }
+    ['simBaseline': '--baseline-ref', 'simCandidate': '--candidate-ref',
+     'simPackage': '--package', 'simBaselinePackage': '--baseline-package',
+     'simOutput': '--output', 'simLabel': '--label'].each { propertyName, option ->
+      if (!listOnly && project.hasProperty(propertyName)) {
+        argv.addAll([option, project.property(propertyName).toString()])
+      }
+    }
+    if (!listOnly && project.hasProperty('simMaps')) {
+      def maps = project.property('simMaps').toString().split(',').collect { it.trim() }
+      if (maps.any { it.isEmpty() }) {
+        throw new GradleException('simMaps must be a comma-separated list of map names.')
+      }
+      argv.add('--maps')
+      argv.addAll(maps)
+    }
+    ['simOffline': '--offline', 'simPrepareOnly': '--prepare-only', 'simSelect': '--select'].each { propertyName, option ->
+      if ((!listOnly || propertyName == 'simOffline') &&
+          (project.findProperty(propertyName) ?: 'false').toString().toBoolean()) {
+        argv.add(option)
+      }
+    }
+    project.exec {
+      workingDir projectDir
+      commandLine argv
+      standardInput System.in
+    }
+}
+
+tasks.register('sim') {
+  description 'Compares saved local Java changes or selected versions on both starting sides.'
+  group 'battlecode'
+  doLast { runSimulation(false) }
+}
+
+tasks.register('simVersions') {
+  description 'Lists available bot branches, tags, and recent commits without compiling.'
+  group 'battlecode'
+  doLast { runSimulation(true) }
+}
 
 task downloadPyPackage(type: Exec) {
   description 'Downloads Python dependencies for running matches.'
