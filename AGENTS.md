@@ -1,9 +1,12 @@
 # Battle Cats development workflow
 
-- Before editing, read [CONTRIBUTING.md](CONTRIBUTING.md). Its Java style,
-  readability, validation and review conventions apply to agent contributions
-  as well as human contributions. Keep shared coding conventions there rather
-  than maintaining separate copies for different agents.
+- Before editing, read and follow [ENGINEERING.md](ENGINEERING.md) and
+  [CONTRIBUTING.md](CONTRIBUTING.md). They contain the shared engineering
+  principles, Java style, readability, validation and review conventions for
+  human and agent contributions. Keep principles in ENGINEERING.md and coding
+  conventions in CONTRIBUTING.md rather than maintaining copies per agent.
+- Project-specific requirements in this file and the Battlecode guidance in
+  CONTRIBUTING.md take precedence over the general engineering principles.
 - The public team repository is
   `https://github.com/Victor-Ramirez-Garcia/CSS554-BattleCats`. Its latest fetched
   `main` is the reference for development and comparisons.

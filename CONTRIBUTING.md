@@ -7,10 +7,35 @@ validating the changes they submit.
 ## Shared instructions
 
 - This file is the shared coding and contribution guide.
+- [ENGINEERING.md](ENGINEERING.md) contains the full engineering principles for
+  architecture, APIs, simplicity, testing, failures, concurrency, performance,
+  data and code hygiene.
 - [AGENTS.md](AGENTS.md) adds the agent development and review workflow.
-- [CLAUDE.md](CLAUDE.md) imports both files for Claude Code. Keep rules in their
-  shared files instead of copying them into each agent's entry point.
+- [CLAUDE.md](CLAUDE.md) imports all three files for Claude Code. Keep rules in
+  their shared files instead of copying them into each agent's entry point.
 - [README.md](README.md) covers setup, available commands and simulation output.
+
+## Applying the engineering principles to Battlecode
+
+Apply the principles to the code being changed. This project's workflow and the
+following Battlecode guidance take precedence when a general rule does not fit:
+
+- Stage and intermediate-representation guidance applies when there is an
+  actual multi-stage pipeline. Keep bot responsibilities clear without adding
+  a new pipeline or abstraction solely to satisfy that guidance.
+- The engine controls robot lifetimes and turn scheduling. Keep the persistent
+  RobotPlayer turn loop and its `Clock.yield()` boundary; bound the work inside
+  each turn instead of imposing an arbitrary robot lifetime limit.
+- Assertions check broken program invariants. Expected game-action failures
+  need handling consistent with the engine API; do not convert a recoverable
+  `GameActionException` into an assertion that kills a robot.
+- Storage, networking and concurrency rules apply where those features exist,
+  including relevant local tooling. They do not require adding those features
+  to the bot. Match failure-injection and recovery checks to the I/O actually
+  used, and follow the validation guidance below for the change's scope.
+- Account for the engine's bytecode budget when adding checks, allocations or
+  abstractions to turn code. Measure the cost and explain any necessary
+  departure from a general recommendation.
 
 ## Java style
 

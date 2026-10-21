@@ -10,10 +10,11 @@ Use the public team main as the reference and keep development branches local
 or on your personal fork. The simulation mode fetches main without pushing any
 branches. It uses upstream/main when configured, otherwise origin/main.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the shared Java style, readability
-and validation conventions for human and agent contributions. Codex uses
-[AGENTS.md](AGENTS.md); [CLAUDE.md](CLAUDE.md) imports the same workflow and guide
-for Claude Code.
+Read [ENGINEERING.md](ENGINEERING.md) for the shared engineering principles and
+[CONTRIBUTING.md](CONTRIBUTING.md) for Java style, Battlecode guidance and
+validation conventions for human and agent contributions. Codex uses
+[AGENTS.md](AGENTS.md) to find this guidance; [CLAUDE.md](CLAUDE.md) imports the
+same principles, workflow and guide for Claude Code.
 
 For bot behavior changes, commit the candidate and run the full comparison with
 `-PsimCandidate=HEAD`. Agent contributions also need a separate reviewer to
