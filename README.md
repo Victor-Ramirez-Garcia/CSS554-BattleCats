@@ -10,9 +10,16 @@ Use the public team main as the reference and keep development branches local
 or on your personal fork. The simulation mode fetches main without pushing any
 branches. It uses upstream/main when configured, otherwise origin/main.
 
-Before proposing a PR, commit the candidate, run the full comparison with
-`-PsimCandidate=HEAD`, and have a separate reviewer inspect the code and results.
-See [AGENTS.md](AGENTS.md) for this project's development and review guidance.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the shared Java style, readability
+and validation conventions for human and agent contributions. Codex uses
+[AGENTS.md](AGENTS.md); [CLAUDE.md](CLAUDE.md) imports the same workflow and guide
+for Claude Code.
+
+For bot behavior changes, commit the candidate and run the full comparison with
+`-PsimCandidate=HEAD`. Agent contributions also need a separate reviewer to
+inspect the code and results before proposing a PR; human contributors can use
+the PR for teammate review. Choose checks appropriate to other changes;
+documentation-only PRs need link and diff checks rather than game simulations.
 
 ## Run and check
 

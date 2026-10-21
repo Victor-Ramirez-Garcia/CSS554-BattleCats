@@ -5,9 +5,11 @@ strategy constants as experimental choices or game requirements. -->
 
 ## Comparison evidence
 
-<!-- Start with the run's generated matches/sim-.../pr-summary.md. Include the
-exact baseline/candidate commits, maps and sides, completion status, results,
-and regressions. A newer push needs results for its new code revision. -->
+<!-- For bot behavior changes, start with the run's generated
+matches/sim-.../pr-summary.md. Include exact baseline/candidate commits, maps
+and sides, completion status, results and regressions. A newer behavior-changing
+push needs results for its new code revision. Documentation-only PRs need link,
+command and diff checks rather than game simulations; describe those below. -->
 
 ## Other validation and review
 
