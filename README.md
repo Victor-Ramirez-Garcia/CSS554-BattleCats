@@ -21,7 +21,7 @@ Use the checked-in Gradle wrapper; a separate Gradle installation is unnecessary
 The first run downloads Gradle and engine dependencies.
 
 ```powershell
-.\gradlew.bat test verify
+.\gradlew.bat test jacocoTestCoverageVerification verify
 .\gradlew.bat run
 .\gradlew.bat zipForSubmit
 ```
@@ -190,39 +190,25 @@ Runs save their artifacts locally and refresh remote refs when fetching main.
 For direct use and additional options, run
 `python tools/simulate.py --help`.
 
-## Team bot at this branch's main baseline
+## Sprint 2 team bot
 
-The testing-tools branch starts from team main `f6cb13a`; it does not include
-the separate experimental 80-cheese/60-round Baby Rat policy.
+Baby Rats collect and deliver cheese, spread outward while exploring, bite cats,
+and build Cat Traps, Rat Traps and small dirt screens. Conditional PvP and local
+shared targeting add combat while food budgeting and emergency deliveries
+protect the king's bank. Normal collectors return with **20 or more cheese**.
+The king evades observed threats, publishes its location and funds further
+population growth from net income after the opening.
 
-- `src/battlecats/RobotPlayer.java` runs the turn loop and selects the behavior
-  for each unit type. Each robot keeps its own behavior instance and memory.
-- `BabyRat.java` scans for a friendly king near spawn, explores, remembers
-  visible cheese, picks it up, returns to a friendly king, transfers the whole
-  load, and resumes searching. Targets are rechecked when visible. A missing
-  king is forgotten and a nearby replacement can be discovered.
-- `Navigation.java` turns toward the desired move and follows obstacles when
-  a direct move is blocked. Exploration uses changing waypoints and scans.
-- `RatKing.java` stays stationary and spawns when cheese exceeds the current
-  rat cost plus its 100-cheese reserve, with no four-baby lifetime cap. It
-  publishes its x/y coordinates in shared slots 0/1; this Baby Rat still
-  discovers kings through local sensing.
-- `src/examplefuncsplayer/` and `src/testfuncsplayer/` remain available as local
-  opponents. The classmate's test-player implementation is preserved.
+Read [the teammate guide](docs/SPRINT_2.md) for turn priorities, file
+responsibilities, policy values and limitations. [Testing and coverage](docs/TESTING.md)
+explains the generated reports and the 21% line-coverage gate. Match evidence is
+recorded in [the validation report](docs/SPRINT_2_RESULTS.md).
 
-Baby Rats do **not** receive a global list of cheese. In v1.2.6 their sensing
-cone is 90 degrees with radius squared 20 (about 4.47 tiles), and cheese is
-discovered through visible map information. Walls do not occlude that cone.
-The collector remembers a target outside its current field of view, then checks
-whether cheese is still there when it becomes visible again.
-
-This is a basic collector, not an optimal path planner. It does not implement
-combat, traps, king promotion, global map sharing, or cat avoidance. Carried
-cheese slows movement. This baseline starts returning when cargo is strictly
-greater than 20; two 20-cheese piles normally trigger a return at 40. If a king disappears,
-the collector searches for another; rapidly moving kings can make delivery less
-reliable than the stationary baseline. Collection and delivery use the same
-logic in cooperation and backstabbing.
+This bot uses local observations and bounded wall following. It has no mine
+memory, global map, worker promotion or rat-carry/throw strategy. Cat engagement
+and combat can still interrupt ordinary deliveries; low bank food activates a
+committed emergency trip. The bundled example opponents remain available for
+local testing.
 
 ## Sources and build support
 
