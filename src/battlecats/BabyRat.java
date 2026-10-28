@@ -33,7 +33,8 @@ public class BabyRat {
             }
             return;
         }
-        if (rc.getRawCheese() > carryAmount) {
+        // A full 20-cheese pickup must not wait indefinitely for a second pile.
+        if (rc.getRawCheese() >= carryAmount) {
             returnCheese(rc);
             return;
         }

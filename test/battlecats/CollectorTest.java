@@ -12,6 +12,27 @@ import static org.junit.Assert.*;
 
 /** Behavioral scenarios; the controller exposes only the engine's real vision cone. */
 public class CollectorTest {
+  @Test
+  public void depositsTwentyWithoutWaitingForAnotherPile() throws Exception {
+    int[] startingLoads = {0, 19, 20, 21};
+    for (int cargo : startingLoads) {
+      World world = collectorWorld();
+      world.rawCheese = cargo;
+      MapLocation anotherPile = at(6, 5);
+      world.cheese.put(anotherPile, 5);
+
+      world.takeTurn(new BabyRat(world.id));
+
+      boolean shouldReturn = cargo >= 20;
+      assertEquals("Delivered from starting load " + cargo,
+          shouldReturn ? cargo : 0, world.delivered);
+      assertEquals("Cargo remaining from starting load " + cargo,
+          shouldReturn ? 0 : cargo + 5, world.rawCheese);
+      assertEquals("A returning worker leaves the other pile alone",
+          shouldReturn ? Collections.emptyList() : Arrays.asList(anotherPile), world.pickups);
+    }
+  }
+
     @Test
     public void collectsDeliversAndStartsAnotherTrip() throws Exception {
         World world = collectorWorld();
