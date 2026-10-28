@@ -13,6 +13,16 @@ public class RatKingEvasionAcceptanceTest {
     private static final MapLocation ALLY_NEAR = new MapLocation(10, 11);
     private static final MapLocation ALLY_FAR = new MapLocation(15, 15);
 
+  @Test
+  public void neutralCatTriggersTheExistingEvasionPolicy() throws Exception {
+    World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
+
+    new RatKing().takeTurn(world.rc);
+
+    assertEquals("The visible neutral cat must trigger an escape move", 1, world.moves);
+    assertTrue(world.location.distanceSquaredTo(CAT_WEST) > KING.distanceSquaredTo(CAT_WEST));
+  }
+
     /* SPEC: Enemy threats trigger evasion.
        VALUE: The king moves farther from a sensed cat.
        SCENARIO: An enemy cat is west of the king.

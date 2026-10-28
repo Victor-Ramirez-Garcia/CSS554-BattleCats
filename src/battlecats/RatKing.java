@@ -30,11 +30,13 @@ public class RatKing {
 
     private void avoidEnemyThreats(RobotController rc) throws GameActionException {
         Team enemy = rc.getTeam() == Team.A ? Team.B : Team.A;
-        RobotInfo[] sensed = rc.senseNearbyRobots(-1, enemy);
+        // Cats belong to NEUTRAL, so an opponent-only query hides them from evasion.
+        RobotInfo[] sensed = rc.senseNearbyRobots();
         List<RobotInfo> allies = findNearbyBabyRatAllies(rc);
         List<RobotInfo> threats = new ArrayList<>();
         for (RobotInfo robot : sensed) {
-            if (robot.getType() == UnitType.CAT || robot.getType() == UnitType.BABY_RAT) {
+            if (robot.getType() == UnitType.CAT
+                    || (robot.getTeam() == enemy && robot.getType() == UnitType.BABY_RAT)) {
                 threats.add(robot);
             }
         }
