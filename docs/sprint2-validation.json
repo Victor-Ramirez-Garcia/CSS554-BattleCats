@@ -1,0 +1,643 @@
+{
+  "candidate_commit": "a14183e56acd4fc55b9ce555ec729e05fda06c95",
+  "scope": "Fresh seven-map comparisons on both sides; one fixed seed per map",
+  "tests": {
+    "tests": 183,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "line_covered": 906,
+    "line_total": 940,
+    "branch_covered": 854,
+    "branch_total": 938,
+    "coverage_xml_sha256": "b1111d24b4f8504b732a3694fa18f478f787da274ad0f120bad66f5b7ff46c10"
+  },
+  "suites": [
+    {
+      "opponent": "main",
+      "baseline_commit": "711b3b669d0826c0353d17e4b7ad43759b662626",
+      "candidate_commit": "a14183e56acd4fc55b9ce555ec729e05fda06c95",
+      "status": "COMPLETE",
+      "candidate_wins": 14,
+      "baseline_wins": 0,
+      "source_hashes": {
+        "baseline": "3306ad163cc18e3a70199d87bfcbe2139fc65b851be0d8d8fb00c9a2e8fbf185",
+        "candidate": "efd7b9ba0b92a6dc1373973c487b55392dc6239cc256d589c42bb764447aa910"
+      },
+      "jar_hashes": {
+        "baseline": "0a54344ac3048d4a2ce46d43ba36224cc2a6f264d24e348471f0ec7b7327e735",
+        "candidate": "ed9f8d0033a66745f72d25403d80ec94be0e263b0fb8ee67899074f949ba3d0a"
+      },
+      "runner_hashes": {
+        "simulate.py": "05784c2471bebc43fc46b34b7fc5904523f36b7e29688d4bebfad1a7b92bd71b",
+        "sim_report.py": "5ec9977a2041f90076ff886fd9cffea8961228e0462e00f70a2acb965df746b4",
+        "sim_runtime.py": "e2d6b33f463dce9d83d068d17f7e2c59228ce75ee9e36132d050d4916fea5923",
+        "sim_versions.py": "ceafef3ab58aafc8fb6f196f01f55e4250360d9f7e57c3c7fb0083b556715d87"
+      },
+      "engine_version": "1.2.6",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\r\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+      "created_utc": "2026-10-28T02:43:53.288720+00:00",
+      "engine_sha256": "ea722532f6d523241ff4f708078563de2a010a39d7d524c66ae1890ab85c04ec",
+      "map_hashes": {
+        "DefaultSmall": "bundled_in_engine",
+        "DefaultMedium": "bundled_in_engine",
+        "DefaultLarge": "bundled_in_engine",
+        "cheesefarm": "bundled_in_engine",
+        "minimaze": "bundled_in_engine",
+        "safelycontained": "bundled_in_engine",
+        "pipes": "bundled_in_engine"
+      },
+      "run_manifest_sha256": "0de46edcb5ec81e39a8ae8cee991adfd236b09e20be5fdc92a98a956447dd364",
+      "results_csv_sha256": "a0cd1e8f320bb240b9cf3bee922386a51a2039320440633461722350ac389a0e",
+      "fixed_round_1000": {
+        "games": 2,
+        "candidate": 15680,
+        "baseline": 9655
+      },
+      "cases": [
+        {
+          "case": "DefaultSmall-A",
+          "map": "DefaultSmall",
+          "side": "A",
+          "seed": 158,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 390,
+          "log_sha256": "c54eed8abdc9660969a6164a1c474f50e27581e17f7495facde131ce4c89b578",
+          "replay_sha256": "d652ac4093856e125eedfe567a23b670d3910c5bb3a35e9679339c6176e075b1"
+        },
+        {
+          "case": "DefaultSmall-B",
+          "map": "DefaultSmall",
+          "side": "B",
+          "seed": 158,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 255,
+          "log_sha256": "cf2e4f08b1e4bb39c1334ae32bde4ba756917705d76400cbe8fcc85433e13bb7",
+          "replay_sha256": "6694a449341b2669b3b2a0130edff0b63b54fe3613085ffa88a194792282d22a"
+        },
+        {
+          "case": "DefaultMedium-A",
+          "map": "DefaultMedium",
+          "side": "A",
+          "seed": 977,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1014,
+          "log_sha256": "cd96b54210369bdbc771f8899e97bff33ea1a33000e6ec8da58255952136b202",
+          "replay_sha256": "b284e5d5d7d6a0cee0ad059f54cc0c81dc12b3dcede775b92ea213ed3857ef46"
+        },
+        {
+          "case": "DefaultMedium-B",
+          "map": "DefaultMedium",
+          "side": "B",
+          "seed": 977,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1315,
+          "log_sha256": "5ea8ae1989e20aca430445ee8347c67515331461a110932b4b80ed8ce23fb1f5",
+          "replay_sha256": "5458df994fa0531c8e4d6996a3b262492ad54dfed227124d9abc08be1d1b78cd"
+        },
+        {
+          "case": "DefaultLarge-A",
+          "map": "DefaultLarge",
+          "side": "A",
+          "seed": 370,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 770,
+          "log_sha256": "056cda7de7952a2f1aee7cedcba0d06b5c3b46ae4d282edec576e84630b0758f",
+          "replay_sha256": "d410a24f7d594359fbbc16ee184534916e4a00772c038848638a20a5511f771f"
+        },
+        {
+          "case": "DefaultLarge-B",
+          "map": "DefaultLarge",
+          "side": "B",
+          "seed": 370,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 700,
+          "log_sha256": "4d9f1d639088af36518b598fd1780e8015293f5c954a54c59e6819e7ad721f52",
+          "replay_sha256": "b404299be7596031b7941db4d36197baea29b052aacc694438d80b24a6f7f42a"
+        },
+        {
+          "case": "cheesefarm-A",
+          "map": "cheesefarm",
+          "side": "A",
+          "seed": 495,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 370,
+          "log_sha256": "0f34f07c50b99cfb6dd2f452a81202f16d44d297f221b1fdea797518c4f69d40",
+          "replay_sha256": "46f527022ccb361261f8d04546e01c9a23282d27842e53c7055f061ab01bbbd9"
+        },
+        {
+          "case": "cheesefarm-B",
+          "map": "cheesefarm",
+          "side": "B",
+          "seed": 495,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 370,
+          "log_sha256": "1c08736966cb0cc8a2b4e4d87353051e2af8c6518d91d777bcd4dd276f43a216",
+          "replay_sha256": "44082c59c7791ffdbab70d87ce8a3d062593a9fcf82bd0fda267fca6c9a85532"
+        },
+        {
+          "case": "minimaze-A",
+          "map": "minimaze",
+          "side": "A",
+          "seed": 239,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 215,
+          "log_sha256": "a61658772f94bc741d12fabab849830b892e91d516f5ffc0288496c5efe36838",
+          "replay_sha256": "96ec32ca5f6ef1c0ec824ace7e3ce4dbea9824c090f23e2cc0ce10d011a9b3de"
+        },
+        {
+          "case": "minimaze-B",
+          "map": "minimaze",
+          "side": "B",
+          "seed": 239,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 195,
+          "log_sha256": "f92e9713fa79563e9dad3231cc59413b77416d05b085a55b900bd6cf3ccb18d0",
+          "replay_sha256": "f45aa81ed81b494eb3f13da411a89e578a11b020ba811c425d9cff2f2b2a9006"
+        },
+        {
+          "case": "safelycontained-A",
+          "map": "safelycontained",
+          "side": "A",
+          "seed": 856,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 275,
+          "log_sha256": "7d4042de5707ccb55428252b156783eb1f6ba7b40c1085f42a458af614e759be",
+          "replay_sha256": "73b3a56e39f7ce81d2c3c090b28307b7b09818e36901e18b59a5995a66575899"
+        },
+        {
+          "case": "safelycontained-B",
+          "map": "safelycontained",
+          "side": "B",
+          "seed": 856,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 275,
+          "log_sha256": "3bf720c9be5ebe70b9417eb38525b73e0fe336c73f7a826f1d0fce72d65849c1",
+          "replay_sha256": "7cf10cd2094ae283818c081d308901529b43ea246161a42304755384c15faa11"
+        },
+        {
+          "case": "pipes-A",
+          "map": "pipes",
+          "side": "A",
+          "seed": 992,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 155,
+          "log_sha256": "7ca390683d62ae2e1e1aeeac147be075c0847b9ac8e57132137b1cc871139811",
+          "replay_sha256": "5d12bfefaad347071c0dadfbb41149cf07da8abc7222364a2c7833e1d8370db7"
+        },
+        {
+          "case": "pipes-B",
+          "map": "pipes",
+          "side": "B",
+          "seed": 992,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 155,
+          "log_sha256": "a76bd360e314bb7517c0a5a33b3580f3f7e754b63996244454699038d7ff7381",
+          "replay_sha256": "e9279e47c7deb888f45641f0cdd0715c5cdeafa57cb1f822658444636ac79461"
+        }
+      ]
+    },
+    {
+      "opponent": "team2",
+      "baseline_commit": "cd1f4b73b44695552e22609d3247744547cae2ca",
+      "candidate_commit": "a14183e56acd4fc55b9ce555ec729e05fda06c95",
+      "status": "COMPLETE",
+      "candidate_wins": 13,
+      "baseline_wins": 1,
+      "source_hashes": {
+        "baseline": "a8c3f0739455d5f48624eeea024cc6fce3141c1803c3d8770d92cb78351483df",
+        "candidate": "efd7b9ba0b92a6dc1373973c487b55392dc6239cc256d589c42bb764447aa910"
+      },
+      "jar_hashes": {
+        "baseline": "c92b1fd5da9ab13016fcfac2f136e88eb076e7fcab7c660288a965563ad4dc01",
+        "candidate": "4e582b8cb9df5d7c9a194ec5ea729686a10100d37b518d029f0b46a13094c5ec"
+      },
+      "runner_hashes": {
+        "simulate.py": "05784c2471bebc43fc46b34b7fc5904523f36b7e29688d4bebfad1a7b92bd71b",
+        "sim_report.py": "5ec9977a2041f90076ff886fd9cffea8961228e0462e00f70a2acb965df746b4",
+        "sim_runtime.py": "e2d6b33f463dce9d83d068d17f7e2c59228ce75ee9e36132d050d4916fea5923",
+        "sim_versions.py": "ceafef3ab58aafc8fb6f196f01f55e4250360d9f7e57c3c7fb0083b556715d87"
+      },
+      "engine_version": "1.2.6",
+      "java_version": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\r\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+      "created_utc": "2026-10-28T02:44:02.156920+00:00",
+      "engine_sha256": "ea722532f6d523241ff4f708078563de2a010a39d7d524c66ae1890ab85c04ec",
+      "map_hashes": {
+        "DefaultSmall": "bundled_in_engine",
+        "DefaultMedium": "bundled_in_engine",
+        "DefaultLarge": "bundled_in_engine",
+        "cheesefarm": "bundled_in_engine",
+        "minimaze": "bundled_in_engine",
+        "safelycontained": "bundled_in_engine",
+        "pipes": "bundled_in_engine"
+      },
+      "run_manifest_sha256": "73edc43cdc229350cc741e5d3371297aaa75e7b940e394b5c7ccbb807ae7065a",
+      "results_csv_sha256": "2d15e0b296b9df9c9a7803ac50d3aff30a5dfc269b4d97bdbc6a3d187dc90a04",
+      "fixed_round_1000": {
+        "games": 11,
+        "candidate": 79550,
+        "baseline": 19587
+      },
+      "cases": [
+        {
+          "case": "DefaultSmall-A",
+          "map": "DefaultSmall",
+          "side": "A",
+          "seed": 158,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 493,
+          "log_sha256": "75a944d8a873d1edafe87fbb06defd25c40fc4873f80083b6e286ea74713d8b0",
+          "replay_sha256": "2b344e116201f105c50df87871a881a69c2eeac682ed22585df39110436f7a4b"
+        },
+        {
+          "case": "DefaultSmall-B",
+          "map": "DefaultSmall",
+          "side": "B",
+          "seed": 158,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 697,
+          "log_sha256": "e9185c334cf81a81420fb8b2110fbb3f93d65e766c78542a0ffb5790412c249f",
+          "replay_sha256": "e9983b68629f86c15d0381466af30bc1deefd8bd27b9649a3249d5e4204e2a12"
+        },
+        {
+          "case": "DefaultMedium-A",
+          "map": "DefaultMedium",
+          "side": "A",
+          "seed": 977,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1445,
+          "log_sha256": "b5adfde97d971a30cf17e0ccdf2bb04f391d3ae9bc02520e77b21e20c731aed0",
+          "replay_sha256": "2a0199b6de505d4252ac797f1f9c75c7d057bed56a07549203b5d5b2ba9fd577"
+        },
+        {
+          "case": "DefaultMedium-B",
+          "map": "DefaultMedium",
+          "side": "B",
+          "seed": 977,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1663,
+          "log_sha256": "cffc1d841171100cdc4ddeef81c5c877bfbe5eb762ba4163a9094555acd5de59",
+          "replay_sha256": "0327a651c1d4c96de659344620d356242d9f57220a40f4b878ae381c2bdd1bf9"
+        },
+        {
+          "case": "DefaultLarge-A",
+          "map": "DefaultLarge",
+          "side": "A",
+          "seed": 370,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 652,
+          "log_sha256": "866552a84ddf7744f2df992162329098889356811af3e16d2db2243c9711a1cf",
+          "replay_sha256": "b22d000366a2005cf4770222a37bf95c4c28be23c103b7f4e3eb93fdc367c4fe"
+        },
+        {
+          "case": "DefaultLarge-B",
+          "map": "DefaultLarge",
+          "side": "B",
+          "seed": 370,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1576,
+          "log_sha256": "7d3e93fd91a3c64402790fa251848ea9fe0d91fa3dbe3559051d04df467c76b0",
+          "replay_sha256": "63037b82752df057ad574f3cc23d019fc24912219aca0fa80270774b4a95a04e"
+        },
+        {
+          "case": "cheesefarm-A",
+          "map": "cheesefarm",
+          "side": "A",
+          "seed": 495,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1612,
+          "log_sha256": "2edf32b2696163191d8202bfcad2aa860dfb2985928c48ee4f9e17118137b627",
+          "replay_sha256": "45bd0b1cc69a719c15a7d92eddd284cf4054aaa33a30e35b82c2e301183011f7"
+        },
+        {
+          "case": "cheesefarm-B",
+          "map": "cheesefarm",
+          "side": "B",
+          "seed": 495,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1708,
+          "log_sha256": "a6b0cc2a40257cf3aa6d574b5e2a6821e81933f388754a09e450694e5b9ee935",
+          "replay_sha256": "eca9587e2e5a9a9fe1d203d563a028bdb753d92ace5acf43f3452c7d291bf2c4"
+        },
+        {
+          "case": "minimaze-A",
+          "map": "minimaze",
+          "side": "A",
+          "seed": 239,
+          "winner": "candidate",
+          "win_type": "MORE_POINTS",
+          "end_round": 2000,
+          "log_sha256": "2a29b5aa2ba1a883e21c0f004665eec15f16bafb91f72db8c3b5639176a78070",
+          "replay_sha256": "20d51b4769354815d127b48f6f6af46a8d4aed5c0c643cf6dc65ae90cf59650d"
+        },
+        {
+          "case": "minimaze-B",
+          "map": "minimaze",
+          "side": "B",
+          "seed": 239,
+          "winner": "baseline",
+          "win_type": "MORE_POINTS",
+          "end_round": 2000,
+          "log_sha256": "38518460b66c8e787a54d96984d67ac016a3f5480c712fee1475bde75fdec9c5",
+          "replay_sha256": "0ff5eaacf31591ddfd0aad54efbcb3dfcfddb265f049fb60088f2815289322bf"
+        },
+        {
+          "case": "safelycontained-A",
+          "map": "safelycontained",
+          "side": "A",
+          "seed": 856,
+          "winner": "candidate",
+          "win_type": "MORE_POINTS",
+          "end_round": 2000,
+          "log_sha256": "a63135e2444f9f9260d475aebe9f617d573734a15eb6135cbbf3e33e080fe67a",
+          "replay_sha256": "1dd7376016465ae05f2b2152962416733a910926ba1090d43cba81c725b22dac"
+        },
+        {
+          "case": "safelycontained-B",
+          "map": "safelycontained",
+          "side": "B",
+          "seed": 856,
+          "winner": "candidate",
+          "win_type": "MORE_POINTS",
+          "end_round": 2000,
+          "log_sha256": "b81232ae4dbcf0e00098edd753b8ee5e404f0d952940555a728b06aca3421dc8",
+          "replay_sha256": "1a06422b40e61554b58609f65aa282521582da539d6078a3fd7376319748555a"
+        },
+        {
+          "case": "pipes-A",
+          "map": "pipes",
+          "side": "A",
+          "seed": 992,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1110,
+          "log_sha256": "a0f8bab380353aba55f27f2f887146661f3219f0a66c8282b3593f21a90a987d",
+          "replay_sha256": "3a71f13688b08f425587b9c0174be0e7951b9bf84b67c800b6d8f3040d362ae0"
+        },
+        {
+          "case": "pipes-B",
+          "map": "pipes",
+          "side": "B",
+          "seed": 992,
+          "winner": "candidate",
+          "win_type": "RATKING_DESTROYED",
+          "end_round": 1110,
+          "log_sha256": "e37d22cc209262f696d87ab4f7762d5c336a55d63a48e32743683f1f500a91d1",
+          "replay_sha256": "e7a7d5ad5c13b88b1721c03fb1d9f0fc24cf3e041a0404aac81bee7c5412cc4c"
+        }
+      ]
+    }
+  ],
+  "candidate_replay_audit": {
+    "reader_source_sha256": "6117b11ecb7da1a6d64f0463b6a1553bc2f1175405b7876eb68e92b2df828598",
+    "summary_sha256": "8e44adf756cf89bc46d0f368e7baf529635fd12d9e04ebbc10ef482c1e7931bf",
+    "cases": [
+      {
+        "case": "main/DefaultSmall-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6541
+      },
+      {
+        "case": "main/DefaultSmall-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 7255
+      },
+      {
+        "case": "main/DefaultMedium-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6545
+      },
+      {
+        "case": "main/DefaultMedium-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6734
+      },
+      {
+        "case": "main/DefaultLarge-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 7545
+      },
+      {
+        "case": "main/DefaultLarge-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6783
+      },
+      {
+        "case": "main/cheesefarm-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 5737
+      },
+      {
+        "case": "main/cheesefarm-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6829
+      },
+      {
+        "case": "main/minimaze-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3538
+      },
+      {
+        "case": "main/minimaze-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 4143
+      },
+      {
+        "case": "main/safelycontained-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3646
+      },
+      {
+        "case": "main/safelycontained-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3559
+      },
+      {
+        "case": "main/pipes-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3206
+      },
+      {
+        "case": "main/pipes-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3729
+      },
+      {
+        "case": "team2/DefaultSmall-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 1,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 7007
+      },
+      {
+        "case": "team2/DefaultSmall-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 12,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 7960
+      },
+      {
+        "case": "team2/DefaultMedium-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6693
+      },
+      {
+        "case": "team2/DefaultMedium-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6706
+      },
+      {
+        "case": "team2/DefaultLarge-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 5,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 8842
+      },
+      {
+        "case": "team2/DefaultLarge-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 14,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 7593
+      },
+      {
+        "case": "team2/cheesefarm-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 9285
+      },
+      {
+        "case": "team2/cheesefarm-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 9448
+      },
+      {
+        "case": "team2/minimaze-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3746
+      },
+      {
+        "case": "team2/minimaze-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 3852
+      },
+      {
+        "case": "team2/safelycontained-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6677
+      },
+      {
+        "case": "team2/safelycontained-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 6838
+      },
+      {
+        "case": "team2/pipes-A",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 4577
+      },
+      {
+        "case": "team2/pipes-B",
+        "starvation_ticks": 0,
+        "ambiguous_king_health_loss_turns": 0,
+        "exception_deaths": 0,
+        "recorded_budget_limit_turns": 0,
+        "maximum_bytecodes_any_unit": 4700
+      }
+    ]
+  }
+}
