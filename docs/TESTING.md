@@ -3,11 +3,15 @@
 Use JDK 21 and the checked-in Gradle wrapper. From the repository root on Windows:
 
 ```powershell
-.\gradlew.bat test jacocoTestReport jacocoTestCoverageVerification verify
+.\gradlew.bat clean test jacocoTestReport jacocoTestCoverageVerification verify
 ```
 
 On macOS/Linux, replace `.\gradlew.bat` with `./gradlew`. The first run downloads
 test and coverage dependencies. Later runs can reuse Gradle's local cache.
+
+Use `clean` when recording coverage, especially after changing branches, so
+obsolete compiled classes do not enter the package-wide denominator. For quick
+iteration on the same source tree, omitting `clean` is fine.
 
 `test` runs the JUnit tests in `test/`. It also generates a JaCoCo report. The
 explicit report task in the command makes that step visible to a reader;
