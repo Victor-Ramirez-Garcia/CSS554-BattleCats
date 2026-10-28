@@ -18,6 +18,8 @@ public final class KingSignal {
 
   /** Publishes after king movement. Engine 1.2.6 only permits kings to write shared memory. */
   public static void publish(RobotController rc) throws GameActionException {
+    // A bytecode pause between coordinate writes must not expose a mixed home as fresh.
+    rc.writeSharedArray(STAMP_SLOT, 0);
     rc.writeSharedArray(X_SLOT, rc.getLocation().x);
     rc.writeSharedArray(Y_SLOT, rc.getLocation().y);
     // Shared values are at most 1023. Two-round buckets fit all 2000 game rounds;

@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import battlecode.common.Direction;
 import battlecode.common.GameActionException;
@@ -154,6 +155,36 @@ public class KingSignalTest {
     }
   }
 
+  @Test
+  public void interruptedPublicationNeverExposesMixedCoordinates() throws Exception {
+    for (int failAfter = 0; failAfter <= 3; failAfter++) {
+      int[] shared = publishHome(HOME, 100);
+      World king = new World(UnitType.RAT_KING, shared);
+      king.location = new MapLocation(6, 11);
+      king.round = 101;
+      king.failAfter = failAfter;
+
+      try {
+        KingSignal.publish(king.rc);
+        fail("Expected an interrupted publication after " + failAfter + " writes");
+      } catch (GameActionException expected) {
+        assertEquals(GameActionExceptionType.CANT_DO_THAT, expected.getType());
+      }
+
+      World worker = new World(UnitType.BABY_RAT, shared);
+      worker.round = 102;
+      // Before any write the old complete message is valid; every partial update is unpublished.
+      assertEquals("Interrupted after " + failAfter + " writes",
+          failAfter == 0 ? HOME : null, KingSignal.read(worker.rc));
+
+      king.failAfter = Integer.MAX_VALUE;
+      king.round = 102;
+      KingSignal.publish(king.rc);
+      assertEquals("A later complete publication must recover", king.location,
+          KingSignal.read(worker.rc));
+    }
+  }
+
   private static int[] publishHome(MapLocation home, int round) throws Exception {
     int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
     World king = new World(UnitType.RAT_KING, shared);
@@ -162,7 +193,7 @@ public class KingSignalTest {
 
     KingSignal.publish(king.rc);
 
-    assertEquals(3, king.writes);
+    assertEquals(4, king.writes);
     assertEquals(home.x, shared[0]);
     assertEquals(home.y, shared[1]);
     return shared;
@@ -180,6 +211,7 @@ public class KingSignalTest {
     MapLocation location = new MapLocation(10, 10);
     int round = 100;
     int writes;
+    int failAfter = Integer.MAX_VALUE;
     int senseCalls;
 
     World(UnitType type, int[] shared) {
@@ -212,6 +244,10 @@ public class KingSignalTest {
         case "readSharedArray":
           return shared[(Integer) args[0]];
         case "writeSharedArray":
+          if (writes == failAfter) {
+            throw new GameActionException(
+                GameActionExceptionType.CANT_DO_THAT, "Injected interrupted publication");
+          }
           int index = (Integer) args[0];
           int value = (Integer) args[1];
           if (type != UnitType.RAT_KING || index < 0 || index >= shared.length

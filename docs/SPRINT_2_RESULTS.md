@@ -3,9 +3,10 @@
 ## Selected behavior
 
 This PR combines the selected Sprint 2 bot, its relevant tests and a JaCoCo
-coverage gate. All ten production Java files in `battlecats`, and the team
-tests, match revision `6cc7522bcd688f2bcf668bd8cde699ac97f19c8d` exactly.
-That snapshot includes conditional PvP, cat engagement, three construction
+coverage gate. The strategy comes from revision
+`6cc7522bcd688f2bcf668bd8cde699ac97f19c8d`. Nine production files match that
+snapshot exactly; `KingSignal` adds an interrupted-publication fix, with a
+regression test. The selected snapshot includes conditional PvP, cat engagement, three construction
 kinds, food safeguards, worker efficiency and normal return at 20 or more.
 The parallel pool, opponent adapters, profiler and later strategy experiments
 are outside this PR.
@@ -19,6 +20,16 @@ establish a universal ordering or general tournament win probability.
 Those broader comparisons used separate experimental tooling. Fresh evidence
 for the assembled PR against team main is recorded separately from history.
 
+## Review correction
+
+Independent review found that a bytecode pause between the home-coordinate
+writes could expose mixed coordinates under the old still-fresh timestamp.
+The new regression test failed under that implementation. `KingSignal` now
+invalidates its timestamp before changing X/Y and publishes the fresh timestamp
+last, matching the existing focus signal. The test injects interruption before
+each write, checks that workers see either the previous complete message or no
+message, and verifies that a later complete publication recovers.
+
 ## Clean checks
 
 The JDK 21 clean run passed:
@@ -27,8 +38,8 @@ The JDK 21 clean run passed:
 .\gradlew.bat clean test jacocoTestReport jacocoTestCoverageVerification verify zipForSubmit
 ```
 
-- 182 unit tests, zero failures.
-- Complete-team line coverage: **905/939 = 96.38%**; the 21% gate passes.
+- **183 unit tests**, zero failures, including the interrupted-write regression.
+- Complete-team line coverage: **906/940 = 96.38%**; the 21% gate passes.
 - Branch coverage: **854/938 = 91.04%**.
 - Engine verifier and submission packaging pass.
 

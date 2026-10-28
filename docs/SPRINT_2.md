@@ -1,9 +1,10 @@
 # Sprint 2 teammate guide
 
 The bot keeps one Rat King and uses Baby Rats as collectors, scouts and local
-fighters. It runs on engine **1.2.6**. The production sources match the selected
-experimental revision `6cc7522bcd688f2bcf668bd8cde699ac97f19c8d`; the PR excludes
-the later contextual delivery, threat-aware travel and mine-memory policies.
+fighters. It runs on engine **1.2.6**. The strategy comes from selected revision
+`6cc7522bcd688f2bcf668bd8cde699ac97f19c8d`, with an additional interrupted-write
+fix for home broadcasts. The PR excludes the later contextual delivery,
+threat-aware travel and mine-memory policies.
 
 ## Read and edit the code
 
@@ -22,6 +23,8 @@ the later contextual delivery, threat-aware travel and mine-memory policies.
 
 Each robot owns its behavior state. Helpers take the controller and observations;
 they do not reach into another behavior's fields. Only kings write shared memory.
+Both signals invalidate their timestamp before writing data and publish the new
+timestamp last, so an interrupted write cannot expose a partial fresh message.
 Actions use their matching `can...` checks. Test a policy through its public
 behavior before changing a threshold; the engine's bytecode limit makes extra
 scans and allocations significant.
