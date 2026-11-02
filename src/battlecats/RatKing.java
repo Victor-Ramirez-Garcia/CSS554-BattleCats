@@ -12,7 +12,9 @@ public class RatKing {
     public void takeTurn(RobotController rc) throws GameActionException {
         rc.setIndicatorString("KING spawned=" + spawned);
 
-        if (RatKingCooperation.isCooperationMode(rc)) {
+        if (RatKingBackstabbing.isBackstabbingMode(rc)) {
+            RatKingBackstabbing.attackNearestEnemy(rc);
+        } else if (RatKingCooperation.isCooperationMode(rc)) {
             RatKingCooperation.attackCatsInRange(rc);
         }
         avoidEnemyThreats(rc);
