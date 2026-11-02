@@ -12,6 +12,9 @@ public class RatKing {
     public void takeTurn(RobotController rc) throws GameActionException {
         rc.setIndicatorString("KING spawned=" + spawned);
 
+        if (RatKingCooperation.isCooperationMode(rc)) {
+            RatKingCooperation.attackCatsInRange(rc);
+        }
         avoidEnemyThreats(rc);
 
         if (rc.getAllCheese() > rc.getCurrentRatCost() + strategic_reserve){
