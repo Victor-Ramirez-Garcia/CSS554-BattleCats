@@ -13,6 +13,248 @@ import static org.junit.Assert.*;
 /** Behavioral scenarios; the controller exposes only the engine's real vision cone. */
 public class CollectorTest {
   @Test
+  public void workerAcquiresDirtAndPlacesTwoDistinctConstructionKinds() throws Exception {
+    World world = new World(at(10, 10), Direction.EAST);
+    world.health = 74; // Keep this scenario on construction, below active cat-engagement health.
+    world.shared[0] = 2;
+    world.shared[1] = 10;
+    world.shared[2] = 1;
+    world.cheese.put(at(14, 10), 25);
+    world.dirtTiles.add(at(11, 10));
+    BabyRat worker = new BabyRat(world.id);
+
+    world.takeTurn(worker);
+
+    assertEquals(Arrays.asList(at(11, 10)), world.digs);
+    assertEquals(1, world.dirtStock);
+    assertFalse(world.dirtTiles.contains(at(11, 10)));
+    // Other rats empty the pile; a nearby cat approaches the worker's next position.
+    world.cheese.clear();
+    world.location = at(10, 10);
+    world.direction = Direction.EAST;
+    world.robots.add(cat(at(13, 10), Direction.WEST));
+    world.shared[2] = world.round / 2 + 1;
+    world.takeTurn(worker);
+
+    assertTrue(world.traps.containsValue(TrapType.CAT_TRAP));
+    world.robots.clear();
+    world.robots.add(cat(at(10, 13), Direction.SOUTH));
+    world.location = at(10, 10);
+    world.direction = Direction.NORTH;
+    world.shared[2] = world.round / 2 + 1;
+    world.takeTurn(worker);
+
+    assertEquals(Arrays.asList(at(10, 11)), world.screens);
+    assertEquals(0, world.dirtStock);
+    assertTrue(world.dirtTiles.contains(at(10, 11)));
+  }
+
+  @Test
+    public void bitesAndEscapesThenResumesItsCollectionTrip() throws Exception {
+        World world = collectorWorld();
+        world.globalCheese = 0;
+        world.cheese.put(at(9, 4), 35);
+        world.robots.add(cat(at(6, 5), Direction.WEST));
+        BabyRat baby = new BabyRat(world.id);
+
+        world.takeTurn(baby);
+
+        assertEquals(Arrays.asList(at(6, 5)), world.attacks);
+        assertTrue(world.location.distanceSquaredTo(at(6, 5)) > 1);
+        world.robots.removeIf(robot -> robot.getType() == UnitType.CAT);
+        runUntilDelivered(baby, world, 35, 40);
+    }
+
+  @Test
+    public void remembersCatSeenBeforeTurningTowardDelivery() throws Exception {
+        World world = collectorWorld();
+        BabyRat baby = new BabyRat(world.id);
+        world.takeTurn(baby); // Learn the king while facing it.
+        world.location = at(5, 5);
+        world.direction = Direction.WEST;
+        world.rawCheese = 40;
+        world.robots.add(cat(at(3, 5), Direction.EAST));
+        assertTrue(world.visible(at(4, 5)));
+
+        world.takeTurn(baby);
+
+        assertEquals("Immediate banking has priority over a bite", 40, world.delivered);
+        assertTrue(world.attacks.isEmpty());
+        assertNotEquals("Turning toward home must not erase the cat threat", at(5, 5), world.location);
+        assertTrue(world.location.distanceSquaredTo(at(4, 5)) > 1);
+    }
+
+  @Test
+    public void buildsOneCatTrapAndStillEscapesInTheSameTurn() throws Exception {
+        World world = collectorWorld();
+        world.globalCheese = 500;
+        // A wounded worker keeps the existing construction/escape path, without active engagement.
+        world.health = 74;
+        world.robots.add(cat(at(6, 5), Direction.WEST));
+
+        world.takeTurn(new BabyRat(world.id));
+
+        assertEquals(1, world.traps.size());
+        assertEquals(TrapType.CAT_TRAP, world.traps.get(at(6, 4)));
+        assertEquals(490, world.globalCheese);
+        assertTrue("Trap and bite share the action cooldown", world.attacks.isEmpty());
+        assertTrue("Construction must not prevent escape movement",
+                world.location.distanceSquaredTo(at(6, 5)) > 1);
+    }
+
+  @Test
+  public void emergencyDepositStillUsesAvailableMovementToEscapeCat() throws Exception {
+    World world = collectorWorld();
+    world.globalCheese = 0;
+    world.rawCheese = 20;
+    world.robots.add(cat(at(6, 5), Direction.WEST));
+
+    world.takeTurn(new BabyRat(world.id));
+
+    assertEquals(20, world.delivered);
+    assertTrue(world.location.distanceSquaredTo(at(6, 5)) > 1);
+  }
+
+  @Test
+  public void emergencyCarrierStillEscapesAVisibleCat() throws Exception {
+    World world = new World(at(5, 5), Direction.EAST);
+    world.globalCheese = 0;
+    world.rawCheese = 10;
+    world.shared[0] = 15;
+    world.shared[1] = 5;
+    world.shared[2] = 1;
+    world.robots.add(cat(at(6, 5), Direction.WEST));
+
+    world.takeTurn(new BabyRat(world.id));
+
+    assertTrue(world.location.distanceSquaredTo(at(6, 5)) > 1);
+    assertEquals(10, world.rawCheese);
+    assertTrue(world.traps.isEmpty());
+  }
+
+  @Test
+  public void pickupForHungryKingImmediatelyStartsDelivery() throws Exception {
+    World world = collectorWorld();
+    world.globalCheese = 0;
+    world.cheese.put(at(6, 6), 10);
+
+    world.takeTurn(new BabyRat(world.id));
+
+    assertEquals(Arrays.asList(at(6, 6)), world.pickups);
+    assertEquals(10, world.delivered);
+    assertEquals(0, world.rawCheese);
+  }
+
+  @Test
+  public void hungryCarrierWithoutSignalLooksBehindForHome() throws Exception {
+    World world = new World(at(7, 5), Direction.EAST);
+    world.robots.add(king(101, Team.A, at(4, 5)));
+    world.globalCheese = 0;
+    world.rawCheese = 10;
+    BabyRat baby = new BabyRat(world.id);
+
+    world.takeTurn(baby);
+    assertEquals(at(7, 5), world.location);
+    runUntilDelivered(baby, world, 10, 8);
+
+    assertEquals(10, world.globalCheese);
+  }
+
+  @Test
+  public void carrierFollowsFreshHomeBroadcastWhenKingMovesOutsideVision() throws Exception {
+    World world = new World(at(5, 5), Direction.EAST);
+    world.globalCheese = 100;
+    world.rawCheese = 10;
+    world.shared[0] = 15;
+    world.shared[1] = 5;
+    world.shared[2] = 1;
+    BabyRat baby = new BabyRat(world.id);
+    world.takeTurn(baby);
+    assertEquals(at(6, 5), world.location);
+
+    world.shared[0] = 6;
+    world.shared[1] = 15;
+    world.shared[2] = world.round / 2 + 1;
+    world.robots.add(king(101, Team.A, at(6, 15)));
+    world.takeTurn(baby);
+
+    assertEquals("The current king signal replaces the distant cached destination",
+        at(6, 6), world.location);
+  }
+
+  @Test
+  public void emergencyTripContinuesWhenAnotherCarrierRefillsTheBank() throws Exception {
+    World world = new World(at(5, 5), Direction.EAST);
+    world.robots.add(king(101, Team.A, at(15, 5)));
+    world.globalCheese = 100;
+    world.rawCheese = 10;
+    world.shared[0] = 15;
+    world.shared[1] = 5;
+    world.shared[2] = 1;
+    BabyRat baby = new BabyRat(world.id);
+
+    world.takeTurn(baby);
+    assertEquals(at(6, 5), world.location);
+    world.globalCheese = 1000;
+    world.cheese.put(at(7, 5), 30);
+    runUntilDelivered(baby, world, 10, 15);
+
+    assertEquals("An already committed carrier must finish its food trip", 10, world.delivered);
+    assertTrue("A delivery trip does not detour to collect more", world.pickups.isEmpty());
+  }
+
+  @Test
+  public void hungryKingGetsSmallCargoBeforeOptionalActions() throws Exception {
+    for (int cargo : new int[] {1, 20}) {
+      World world = collectorWorld();
+      world.globalCheese = 200;
+      world.rawCheese = cargo;
+      world.cooperation = false;
+      world.robots.add(baby(201, Team.B, at(6, 5)));
+      world.robots.add(baby(202, Team.B, at(6, 4)));
+
+      world.takeTurn(new BabyRat(world.id));
+
+      assertEquals(cargo, world.delivered);
+      assertEquals(200 + cargo, world.globalCheese);
+      assertTrue(world.attacks.isEmpty());
+    }
+  }
+
+  @Test
+  public void protectedWorkerKeepsItsBitingPositionBeforeOptionalConstruction() throws Exception {
+    World world = new World(at(0, 0), Direction.EAST);
+    world.walls.add(at(1, 0));
+    world.robots.add(king(101, Team.A, at(4, 2)));
+    world.robots.add(cat(at(1, 1), Direction.SOUTH));
+
+    world.takeTurn(new BabyRat(world.id));
+
+    assertEquals(Arrays.asList(at(1, 1)), world.attacks);
+    assertEquals(at(0, 0), world.location);
+    assertTrue(world.traps.isEmpty());
+    assertEquals("Only free bites are used", 1000, world.globalCheese);
+  }
+
+  @Test
+  public void emptyWorkerBitesBeforeEconomicFacingCanHideTheCat() throws Exception {
+    World world = collectorWorld();
+    world.cheese.put(at(9, 4), 35);
+    BabyRat baby = new BabyRat(world.id);
+    world.takeTurn(baby);
+    world.location = at(5, 5);
+    world.direction = Direction.WEST;
+    world.robots.add(cat(at(3, 5), Direction.EAST));
+
+    world.takeTurn(baby);
+
+    assertEquals(Arrays.asList(at(4, 5)), world.attacks);
+    assertTrue("The bite does not replace escape on an exposed tile",
+        world.location.distanceSquaredTo(at(4, 5)) > 1);
+    assertTrue(world.traps.isEmpty());
+  }
+
+  @Test
   public void stalePublicationRetainsAPreviouslyKnownRemoteHome() throws Exception {
     World world = new World(at(16, 5), Direction.EAST);
     world.shared[0] = 4;
@@ -290,29 +532,47 @@ public class CollectorTest {
         return new RobotInfo(id, team, UnitType.RAT_KING, 600, center, Direction.EAST, 0, 0, null);
     }
 
+    private static RobotInfo cat(MapLocation anchor, Direction direction) {
+        return new RobotInfo(301, Team.NEUTRAL, UnitType.CAT, 4000, anchor, direction, 0, 0, null);
+    }
+
+    private static RobotInfo baby(int id, Team team, MapLocation location) {
+        return new RobotInfo(id, team, UnitType.BABY_RAT, 100, location, Direction.EAST, 0, 0, null);
+    }
+
     /** Minimal scenario world, not a second strategy implementation or an engine substitute. */
     private static final class World implements InvocationHandler {
         final int id = 2;
         final int size = 24;
         final Map<MapLocation, Integer> cheese = new LinkedHashMap<>();
+        final Map<MapLocation, TrapType> traps = new HashMap<>();
         final Set<MapLocation> walls = new HashSet<>();
+        final Set<MapLocation> dirtTiles = new HashSet<>();
+        final List<MapLocation> digs = new ArrayList<>();
+        final List<MapLocation> screens = new ArrayList<>();
         final List<RobotInfo> robots = new ArrayList<>();
         final List<MapLocation> pickups = new ArrayList<>();
+        final List<MapLocation> attacks = new ArrayList<>();
         final List<MapLocation> transfers = new ArrayList<>();
         final List<Integer> recipientIds = new ArrayList<>();
-        final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         final RobotController rc;
         MapLocation location;
         Direction direction;
         int round = 1;
         int rawCheese;
+        int globalCheese = 1000;
+        int health = 100;
+        int dirtStock;
+        final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         int delivered;
         int turns;
         int moves;
         int kingSightings;
+        int robotScans;
         boolean movementReady = true;
         boolean turningReady = true;
         boolean actionReady = true;
+        boolean cooperation = true;
 
         World(MapLocation location, Direction direction) {
             this.location = location;
@@ -351,14 +611,16 @@ public class CollectorTest {
 
         MapInfo info(MapLocation target) {
             boolean wall = walls.contains(target);
-            return new MapInfo(target, !wall, null, wall, false,
-                    cheese.getOrDefault(target, 0), TrapType.NONE, false);
+            return new MapInfo(target, !wall && !dirtTiles.contains(target), null, wall,
+                    dirtTiles.contains(target),
+                    cheese.getOrDefault(target, 0), traps.getOrDefault(target, TrapType.NONE), false);
         }
 
         boolean canMove(Direction step) {
             MapLocation target = location.add(step);
             return movementReady && step != Direction.CENTER && onMap(target)
-                    && !walls.contains(target) && robotAt(target) == null;
+                    && !walls.contains(target) && !dirtTiles.contains(target)
+                    && robotAt(target) == null;
         }
 
         boolean canPickUp(MapLocation target) {
@@ -373,6 +635,12 @@ public class CollectorTest {
                     && recipient != null && recipient.getTeam() == Team.A;
         }
 
+        boolean canTrap(MapLocation target) {
+            return actionReady && visible(target) && globalCheese + rawCheese >= 10
+                    && location.distanceSquaredTo(target) <= GameConstants.BUILD_DISTANCE_SQUARED
+                    && !walls.contains(target) && robotAt(target) == null && !traps.containsKey(target);
+        }
+
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             switch (method.getName()) {
@@ -381,12 +649,52 @@ public class CollectorTest {
                 case "getMapWidth": case "getMapHeight": return size;
                 case "getTeam": return Team.A;
                 case "getType": return UnitType.BABY_RAT;
+                case "getHealth": return health;
+                case "isCooperation": return cooperation;
                 case "getLocation": return location;
                 case "getDirection": return direction;
                 case "getRawCheese": return rawCheese;
+                case "getGlobalCheese": return globalCheese;
                 case "readSharedArray": return shared[(Integer) args[0]];
                 case "isBeingCarried": case "isBeingThrown": return false;
                 case "isMovementReady": return movementReady;
+                case "isActionReady": return actionReady;
+                case "getActionCooldownTurns": return actionReady ? 0 : 10;
+                case "getAllCheese": return rawCheese + globalCheese;
+                case "getDirt": return dirtStock;
+                case "canPlaceDirt": {
+                    MapLocation target = (MapLocation) args[0];
+                    return actionReady && dirtStock > 0 && visible(target)
+                            && location.distanceSquaredTo(target) <= GameConstants.BUILD_DISTANCE_SQUARED
+                            && info(target).isPassable() && robotAt(target) == null;
+                }
+                case "placeDirt": {
+                    MapLocation target = (MapLocation) args[0];
+                    assertTrue(actionReady && dirtStock > 0 && info(target).isPassable());
+                    dirtTiles.add(target);
+                    screens.add(target);
+                    dirtStock--;
+                    actionReady = false;
+                    return null;
+                }
+                case "canRemoveDirt": {
+                    MapLocation target = (MapLocation) args[0];
+                    return actionReady && visible(target) && dirtTiles.contains(target)
+                            && location.distanceSquaredTo(target) <= GameConstants.BUILD_DISTANCE_SQUARED
+                            && rawCheese + globalCheese >= GameConstants.DIG_DIRT_CHEESE_COST;
+                }
+                case "removeDirt": {
+                    MapLocation target = (MapLocation) args[0];
+                    assertTrue(actionReady && visible(target) && dirtTiles.remove(target));
+                    int cargoCost = Math.min(rawCheese, GameConstants.DIG_DIRT_CHEESE_COST);
+                    rawCheese -= cargoCost;
+                    globalCheese -= GameConstants.DIG_DIRT_CHEESE_COST - cargoCost;
+                    dirtStock++;
+                    digs.add(target);
+                    actionReady = false;
+                    return null;
+                }
+                case "onTheMap": return onMap((MapLocation) args[0]);
                 case "canSenseLocation": return visible((MapLocation) args[0]);
                 case "senseRobotAtLocation": {
                     MapLocation target = (MapLocation) args[0];
@@ -394,6 +702,7 @@ public class CollectorTest {
                     return robotAt(target);
                 }
                 case "senseNearbyRobots": {
+                    robotScans++;
                     List<RobotInfo> visibleRobots = new ArrayList<>();
                     Team team = args == null || args.length < 2 ? null : (Team) args[1];
                     for (RobotInfo robot : robots) {
@@ -432,6 +741,32 @@ public class CollectorTest {
                     turns++;
                     return null;
                 case "canMove": return canMove((Direction) args[0]);
+                case "canPlaceCatTrap": return canTrap((MapLocation) args[0]);
+                case "placeCatTrap": {
+                    MapLocation target = (MapLocation) args[0];
+                    assertTrue("Illegal Cat Trap placement", canTrap(target));
+                    traps.put(target, TrapType.CAT_TRAP);
+                    int localCost = Math.min(rawCheese, TrapType.CAT_TRAP.buildCost);
+                    rawCheese -= localCost;
+                    globalCheese -= TrapType.CAT_TRAP.buildCost - localCost;
+                    actionReady = false;
+                    return null;
+                }
+                case "canAttack": {
+                    MapLocation target = (MapLocation) args[0];
+                    RobotInfo robot = robotAt(target);
+                    return actionReady && visible(target)
+                            && location.distanceSquaredTo(target) <= GameConstants.ATTACK_DISTANCE_SQUARED
+                            && robot != null && robot.getTeam() != Team.A;
+                }
+                case "attack":
+                    assertEquals("Only zero-cheese bites are part of this draft", 1, args.length);
+                    assertTrue(actionReady && visible((MapLocation) args[0]));
+                    attacks.add((MapLocation) args[0]);
+                    RobotInfo victim = robotAt((MapLocation) args[0]);
+                    if (victim.getType() != UnitType.CAT) cooperation = false;
+                    actionReady = false;
+                    return null;
                 case "move":
                     assertTrue("Move attempted into an occupied/walled tile or during cooldown", canMove((Direction) args[0]));
                     location = location.add((Direction) args[0]);
@@ -454,6 +789,7 @@ public class CollectorTest {
                     assertEquals("Collectors must deliver to kings", UnitType.RAT_KING, robotAt(target).getType());
                     rawCheese -= amount;
                     delivered += amount;
+                    globalCheese += amount;
                     actionReady = false;
                     transfers.add(target);
                     recipientIds.add(robotAt(target).getID());
