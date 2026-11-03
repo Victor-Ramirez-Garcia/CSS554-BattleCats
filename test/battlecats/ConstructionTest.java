@@ -27,6 +27,24 @@ import org.junit.Test;
 /** Construction scenarios inspect changed terrain, resources and actions, not internal flags. */
 public class ConstructionTest {
   @Test
+  public void refilledBankCannotMakeAnEmergencyDigConsumeTheEntireLoad() throws Exception {
+    int cost = GameConstants.DIG_DIRT_CHEESE_COST;
+    for (int cargo : new int[] {0, 1, cost - 1, cost}) {
+      World world = new World();
+      world.globalCheese = 1000;
+      world.rawCheese = cargo;
+      world.dirtTiles.add(at(11, 10));
+
+      assertFalse(new Construction().clearDeliveryRoute(world.rc, at(20, 10)));
+
+      assertEquals(cargo, world.rawCheese);
+      assertEquals(1000, world.globalCheese);
+      assertTrue(world.dirtTiles.contains(at(11, 10)));
+      assertTrue(world.actions.isEmpty());
+    }
+  }
+
+  @Test
   public void doesNotSealADiagonalPassageWithADirtScreen() throws Exception {
     World world = screenWorld();
     world.robots.clear();

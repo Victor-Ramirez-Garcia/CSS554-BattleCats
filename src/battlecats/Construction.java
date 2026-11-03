@@ -79,6 +79,10 @@ public class Construction {
   private boolean tryClearRoute(RobotController rc, MapLocation objective, boolean deliveringFood)
       throws GameActionException {
     int cost = GameConstants.DIG_DIRT_CHEESE_COST;
+    // Even after another carrier refills the bank, cargo pays first. Do not empty this trip.
+    if (deliveringFood && rc.getRawCheese() <= cost) {
+      return false;
+    }
     // An emergency dig may use cargo, retaining some cheese to deliver, without touching the bank.
     boolean usesCargo = deliveringFood && rc.getRawCheese() > cost;
     if (objective == null
