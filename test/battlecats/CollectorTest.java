@@ -13,6 +13,29 @@ import static org.junit.Assert.*;
 /** Behavioral scenarios; the controller exposes only the engine's real vision cone. */
 public class CollectorTest {
   @Test
+  public void normalCargoSurvivesOptionalDiggingWhileEmergencyCargoCanClearItsRoute()
+      throws Exception {
+    for (int bank : new int[] {1000, 200}) {
+      World world = new World(at(16, 5), Direction.EAST);
+      world.rawCheese = 20;
+      world.globalCheese = bank;
+      world.shared[0] = 4;
+      world.shared[1] = 5;
+      world.shared[2] = 1;
+      world.dirtTiles.add(at(15, 5));
+
+      world.takeTurn(new BabyRat(world.id));
+
+      boolean emergency = bank == 200;
+      assertEquals(emergency ? 20 - GameConstants.DIG_DIRT_CHEESE_COST : 20,
+          world.rawCheese);
+      assertEquals(bank, world.globalCheese);
+      assertEquals(emergency ? 1 : 0, world.digs.size());
+      assertEquals(!emergency, world.dirtTiles.contains(at(15, 5)));
+    }
+  }
+
+  @Test
   public void workerAcquiresDirtAndPlacesTwoDistinctConstructionKinds() throws Exception {
     World world = new World(at(10, 10), Direction.EAST);
     world.health = 74; // Keep this scenario on construction, below active cat-engagement health.

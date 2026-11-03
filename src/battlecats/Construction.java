@@ -31,7 +31,9 @@ public class Construction {
   public boolean tryBuild(
       RobotController rc, MapLocation home, MapLocation objective, RobotInfo[] visibleCats)
       throws GameActionException {
-    if (!rc.isActionReady()) {
+    // The engine spends cargo before the bank. Keep normal return loads at their threshold;
+    // only clearDeliveryRoute may deliberately use cargo to rescue an emergency food trip.
+    if (!rc.isActionReady() || rc.getRawCheese() != 0) {
       return false;
     }
     MapLocation catPart = nearestCatPart(rc.getLocation(), visibleCats);
@@ -46,8 +48,7 @@ public class Construction {
 
   private boolean tryCatTrap(RobotController rc, MapLocation catPart)
       throws GameActionException {
-    if (placedCatTrap || rc.getRawCheese() != 0
-        || !FoodBudget.canSpend(rc.getGlobalCheese(), TrapType.CAT_TRAP.buildCost)) {
+    if (placedCatTrap || !FoodBudget.canSpend(rc.getGlobalCheese(), TrapType.CAT_TRAP.buildCost)) {
       return false;
     }
     MapLocation here = rc.getLocation();
