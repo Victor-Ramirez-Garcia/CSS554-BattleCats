@@ -37,6 +37,9 @@ The first run downloads Gradle and engine dependencies.
 See [tests and coverage](docs/TESTING.md) for the HTML report locations and the
 Sprint 2 coverage requirement.
 
+See [Sprint 2 gameplay and demo evidence](docs/SPRINT_2_COMPLIANCE.md) for cat
+bites, Cat Traps, Dirt placement/removal, food priorities and replay instructions.
+
 On macOS/Linux, use `./gradlew` instead. `run` compiles automatically and plays
 `battlecats` against `examplefuncsplayer` on `DefaultSmall`. Replays are written
 under `matches/`. `build` also downloads the graphical replay client under
