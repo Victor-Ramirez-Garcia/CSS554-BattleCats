@@ -21,8 +21,12 @@ public class Navigation {
     }
 
     public void explore(RobotController rc) throws GameActionException {
-        if (waypoint == null || rc.getLocation().distanceSquaredTo(waypoint) <= 2
-                || rc.getRoundNum() - waypointRound >= 30) {
+        if (
+                waypoint == null                                        //there isn't a waypoint set
+                || rc.getLocation().distanceSquaredTo(waypoint) <= 2    //we're at the waypoint
+                || rc.getRoundNum() - waypointRound >= 30               //we've been trying to get to the waypoint for 30 turns
+            ) 
+        {
             waypoint = new MapLocation(random.nextInt(rc.getMapWidth()), random.nextInt(rc.getMapHeight()));
             waypointRound = rc.getRoundNum();
         }
