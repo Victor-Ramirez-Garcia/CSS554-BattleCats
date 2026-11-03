@@ -25,6 +25,7 @@ public final class CatTactics {
   // after a turn changes what the worker can sense; cat positions are never remembered here.
   private MapLocation certifiedLocation;
 
+  //PUBLIC METHODS FOR OTHER FILES TO CALL
   public CatTactics() {}
 
   /**
@@ -32,14 +33,18 @@ public final class CatTactics {
    * Call after immediate food pickup/delivery. Returns true after handling an action, turn or move;
    * ordinary navigation should then wait. Scratch damage and unseen cats remain possible.
    */
+
+  // I think the second part for if we're not cooperating is where we'd put the backstabbing code
+  //Need to look at how it's used to see if always returning false is ok
   public boolean engage(RobotController rc, RobotInfo[] observations) throws GameActionException {
-    if (rc.getType() != UnitType.BABY_RAT
-        || rc.getRawCheese() != 0
-        || FoodBudget.needsDelivery(rc.getGlobalCheese())
-        || rc.getHealth() < MIN_ENGAGING_HEALTH
-        || !rc.isActionReady()) {
+    if (rc.getType() != UnitType.BABY_RAT                   //when can the babyRat NOT engage
+        || rc.getRawCheese() != 0                           //if it's carrying cheese
+        || FoodBudget.needsDelivery(rc.getGlobalCheese())   //if it's returning cheese (I don't think we need this)
+        || rc.getHealth() < MIN_ENGAGING_HEALTH             //if it's at risk of dying to swipes
+        || !rc.isActionReady()) {                           //if it's not ready to take actions
       return false;
     }
+    //if we're no longer cooperating 
     if (!rc.isCooperation()) {
       Team enemy = rc.getTeam().opponent();
       for (RobotInfo robot : observations) {
@@ -53,10 +58,15 @@ public final class CatTactics {
 
     MapLocation here = rc.getLocation();
     RobotInfo cat = nearestCat(here, observations);
+
+    //if all cats are too far away
+    //ENGAGEMENT_RADIUS_SQUARED = 9
     if (cat == null || distanceToCat(here, cat) > ENGAGEMENT_RADIUS_SQUARED) {
       return false;
     }
 
+    //if we're close enough to a cat
+    //ATTACK_DISTANCE_SQUARED = 2
     int currentDistance = distanceToCat(here, cat);
     if (currentDistance <= GameConstants.ATTACK_DISTANCE_SQUARED) {
       boolean protectedHere = isCertified(rc, here);
@@ -68,8 +78,12 @@ public final class CatTactics {
         }
         return true;
       }
+      //there should be an else here for when we're:
+      //inside the engagement_radius_squared (9) but
+      //outside the attack_distance_squared (2)
     }
 
+    
     Direction best = Direction.CENTER;
     int bestDistance = currentDistance;
     for (Direction direction : Direction.values()) {
@@ -94,111 +108,6 @@ public final class CatTactics {
     rc.setIndicatorString("APPROACH_CAT id=" + cat.getID());
     faceAndBite(rc, cat);
     return true;
-  }
-
-  private boolean isCertified(RobotController rc, MapLocation location)
-      throws GameActionException {
-    if (location.equals(certifiedLocation)) {
-      return true;
-    }
-    // Engine rule: a cat has a 2x2 footprint anchored at its bottom-left tile. Normal movement
-    // and pounce can crush babies. Block all four landings containing this tile, rather than
-    // assuming the cat cannot jump across a wall. Dirt and occupied tiles can change, so neither
-    // is evidence. A cat cooldown is not exposed in RobotInfo and cannot be assumed.
-    for (int anchorX = location.x - 1; anchorX <= location.x; anchorX++) {
-      for (int anchorY = location.y - 1; anchorY <= location.y; anchorY++) {
-        boolean blocked = false;
-        for (int dx = 0; dx < 2 && !blocked; dx++) {
-          for (int dy = 0; dy < 2; dy++) {
-            MapLocation part = new MapLocation(anchorX + dx, anchorY + dy);
-            if (!rc.onTheMap(part)
-                || (rc.canSenseLocation(part) && rc.senseMapInfo(part).isWall())) {
-              blocked = true;
-              break;
-            }
-          }
-        }
-        if (!blocked) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  private static RobotInfo nearestCat(MapLocation here, RobotInfo[] observations) {
-    RobotInfo nearest = null;
-    int nearestDistance = Integer.MAX_VALUE;
-    for (RobotInfo robot : observations) {
-      if (robot.getType() != UnitType.CAT) {
-        continue;
-      }
-      int distance = distanceToCat(here, robot);
-      if (nearest == null || distance < nearestDistance
-          || (distance == nearestDistance && robot.getID() < nearest.getID())) {
-        nearest = robot;
-        nearestDistance = distance;
-      }
-    }
-    return nearest;
-  }
-
-  private static int distanceToCat(MapLocation here, RobotInfo cat) {
-    MapLocation anchor = cat.getLocation();
-    int dx = here.x - Math.max(anchor.x, Math.min(here.x, anchor.x + 1));
-    int dy = here.y - Math.max(anchor.y, Math.min(here.y, anchor.y + 1));
-    return dx * dx + dy * dy;
-  }
-
-  private static MapLocation nearestCatPart(MapLocation here, RobotInfo cat) {
-    MapLocation anchor = cat.getLocation();
-    return new MapLocation(
-        Math.max(anchor.x, Math.min(here.x, anchor.x + 1)),
-        Math.max(anchor.y, Math.min(here.y, anchor.y + 1)));
-  }
-
-  private static boolean faceCat(RobotController rc, RobotInfo cat) throws GameActionException {
-    Direction direction = rc.getLocation().directionTo(nearestCatPart(rc.getLocation(), cat));
-    if (direction != Direction.CENTER && direction != rc.getDirection() && rc.canTurn(direction)) {
-      rc.turn(direction);
-      return true;
-    }
-    return false;
-  }
-
-  private static boolean faceAndBite(RobotController rc, RobotInfo cat)
-      throws GameActionException {
-    if (tryBiteCat(rc, cat)) {
-      return true;
-    }
-    boolean turned = faceCat(rc, cat);
-    return tryBiteCat(rc, cat) || turned;
-  }
-
-  /** Uses the zero-cheese bite only. The engine checks range, facing and action cooldown. */
-  public static boolean tryBite(RobotController rc, RobotInfo[] cats)
-      throws GameActionException {
-    for (RobotInfo cat : cats) {
-      if (cat.getType() != UnitType.CAT) {
-        continue;
-      }
-      if (tryBiteCat(rc, cat)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean tryBiteCat(RobotController rc, RobotInfo cat) throws GameActionException {
-    // A cat occupies four tiles. Its nearest edge can be legal when its anchor is not.
-    for (MapLocation part : UnitType.CAT.getAllTypeLocations(cat.getLocation())) {
-      if (rc.canAttack(part)) {
-        rc.attack(part);
-        rc.setIndicatorString("BITE_CAT id=" + cat.getID());
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -234,6 +143,135 @@ public final class CatTactics {
       rc.setIndicatorString("EVADE_CAT");
     }
     return true;
+  }
+
+  /** Uses the zero-cheese bite only. The engine checks range, facing and action cooldown. */
+  //This is what babyRat takeTurn calls
+  public static boolean tryBite(RobotController rc, RobotInfo[] cats)
+      throws GameActionException {
+    for (RobotInfo cat : cats) {
+      if (cat.getType() != UnitType.CAT) {    //what else could it be?
+        continue;
+      }
+      if (tryBiteCat(rc, cat)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+
+  //PRIVATE METHODS FOR OTHER METHODS IN THIS CLASS
+  //determines if an area is safe from pounce
+  private boolean isCertified(RobotController rc, MapLocation location)
+      throws GameActionException {
+    if (location.equals(certifiedLocation)) {
+      return true;
+    }
+    // Engine rule: a cat has a 2x2 footprint anchored at its bottom-left tile. Normal movement
+    // and pounce can crush babies. Block all four landings containing this tile, rather than
+    // assuming the cat cannot jump across a wall. Dirt and occupied tiles can change, so neither
+    // is evidence. A cat cooldown is not exposed in RobotInfo and cannot be assumed.
+    for (int anchorX = location.x - 1; anchorX <= location.x; anchorX++) {
+      for (int anchorY = location.y - 1; anchorY <= location.y; anchorY++) {
+        boolean blocked = false;
+        for (int dx = 0; dx < 2 && !blocked; dx++) {
+          for (int dy = 0; dy < 2; dy++) {
+            MapLocation part = new MapLocation(anchorX + dx, anchorY + dy);
+            if (!rc.onTheMap(part)
+                || (rc.canSenseLocation(part) && rc.senseMapInfo(part).isWall())) {
+              blocked = true;
+              break;
+            }
+          }
+        }
+        if (!blocked) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  //returns the nearest cat
+  private static RobotInfo nearestCat(MapLocation here, RobotInfo[] observations) {
+    RobotInfo nearest = null;
+    int nearestDistance = Integer.MAX_VALUE;
+
+    //go over the observations for all cats
+    for (RobotInfo robot : observations) {
+      if (robot.getType() != UnitType.CAT) {
+        continue;
+      }
+      //find the nearest cat of all observed cats
+      int distance = distanceToCat(here, robot);
+      if (nearest == null 
+          || distance < nearestDistance
+          || (distance == nearestDistance && robot.getID() < nearest.getID())) {
+        nearest = robot;
+        nearestDistance = distance;
+      }
+    }
+    //return only the nearest cat, might return null
+    return nearest;
+  }
+
+  //doesn't this need a square root on the return?
+  //it works because what calls it (for ENGAGEMENT_RADUIS_SQUARED) also needs a square root, but it seems misleading
+  private static int distanceToCat(MapLocation here, RobotInfo cat) {
+    MapLocation anchor = cat.getLocation();
+    int dx = here.x - Math.max(anchor.x, Math.min(here.x, anchor.x + 1));
+    int dy = here.y - Math.max(anchor.y, Math.min(here.y, anchor.y + 1));
+    return dx * dx + dy * dy;
+  }
+
+  //returns the nearest edge of the cat
+  //consider moving this into faceCat
+  private static MapLocation nearestCatPart(MapLocation here, RobotInfo cat) {
+    MapLocation anchor = cat.getLocation();
+    return new MapLocation(
+        Math.max(anchor.x, Math.min(here.x, anchor.x + 1)),
+        Math.max(anchor.y, Math.min(here.y, anchor.y + 1)));
+  }
+
+  //turns to face a specific cat
+  private static boolean faceCat(RobotController rc, RobotInfo cat) throws GameActionException {
+    MapLocation anchor = cat.getLocation();
+    
+    MapLocation nearestPart  = new MapLocation(
+        Math.max(anchor.x, Math.min(rc.getLocation().x, anchor.x + 1)),
+        Math.max(anchor.y, Math.min(rc.getLocation().y, anchor.y + 1)));
+ 
+    Direction direction = rc.getLocation().directionTo(nearestPart);
+    if (direction != Direction.CENTER && direction != rc.getDirection() && rc.canTurn(direction)) {
+      rc.turn(direction);
+      return true;
+    }
+    return false;
+  }
+
+  //return true if you can bite the cat
+  //if you can't, return true if you turned to face the cat
+  //else return false
+  private static boolean faceAndBite(RobotController rc, RobotInfo cat)
+      throws GameActionException {
+    if (tryBiteCat(rc, cat)) {
+      return true;
+    }
+    boolean turned = faceCat(rc, cat);
+    return tryBiteCat(rc, cat) || turned;
+  }
+
+  private static boolean tryBiteCat(RobotController rc, RobotInfo cat) throws GameActionException {
+    // A cat occupies four tiles. Its nearest edge can be legal when its anchor is not.
+    for (MapLocation part : UnitType.CAT.getAllTypeLocations(cat.getLocation())) {
+      if (rc.canAttack(part)) {
+        rc.attack(part);
+        rc.setIndicatorString("BITE_CAT id=" + cat.getID());
+        return true;
+      }
+    }
+    return false;
   }
 
   private static int risk(MapLocation location, RobotInfo[] cats) {
