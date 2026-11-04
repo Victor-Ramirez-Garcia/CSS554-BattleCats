@@ -29,10 +29,16 @@ Use the checked-in Gradle wrapper; a separate Gradle installation is unnecessary
 The first run downloads Gradle and engine dependencies.
 
 ```powershell
-.\gradlew.bat test verify
+.\gradlew.bat test jacocoTestCoverageVerification verify
 .\gradlew.bat run
 .\gradlew.bat zipForSubmit
 ```
+
+See [tests and coverage](docs/TESTING.md) for the HTML report locations and the
+Sprint 2 coverage requirement.
+
+See [Sprint 2 gameplay and demo evidence](docs/SPRINT_2_COMPLIANCE.md) for cat
+bites, Cat Traps, Dirt placement/removal, food priorities and replay instructions.
 
 On macOS/Linux, use `./gradlew` instead. `run` compiles automatically and plays
 `battlecats` against `examplefuncsplayer` on `DefaultSmall`. Replays are written

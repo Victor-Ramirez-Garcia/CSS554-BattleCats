@@ -14,6 +14,33 @@ public class RatKingEvasionAcceptanceTest {
     private static final MapLocation ALLY_FAR = new MapLocation(15, 15);
 
   @Test
+  public void spawningPreservesFoodAndRequiresIncomeAfterTheOpening() throws Exception {
+    int[][] cases = {{309, 10, 0}, {310, 10, 1}, {1000, 40, 1}, {1000, 50, 0}};
+    for (int[] scenario : cases) {
+      World world = world();
+      world.bank = scenario[0];
+      world.ratCost = scenario[1];
+
+      new RatKing().takeTurn(world.rc);
+
+      assertEquals(scenario[2], world.births);
+      assertEquals(scenario[0] - scenario[1] * scenario[2], world.bank);
+    }
+  }
+
+  @Test
+  public void publishesItsFinalLocationAfterEvadingACat() throws Exception {
+    World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
+
+    new RatKing().takeTurn(world.rc);
+
+    assertEquals(1, world.moves);
+    assertEquals(world.location.x, world.shared[0]);
+    assertEquals(world.location.y, world.shared[1]);
+    assertEquals("Round 100 is published in two-round bucket 51", 51, world.shared[2]);
+  }
+
+  @Test
   public void neutralCatTriggersTheExistingEvasionPolicy() throws Exception {
     World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
 
@@ -130,20 +157,31 @@ public class RatKingEvasionAcceptanceTest {
         final List<RobotInfo> robots = new ArrayList<>();
         MapLocation location = KING;
         int moves;
+        int bank;
+        int ratCost = 10;
+        int births;
+        final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         World() { rc = (RobotController) Proxy.newProxyInstance(RobotController.class.getClassLoader(), new Class<?>[]{RobotController.class}, this); }
         public Object invoke(Object proxy, Method method, Object[] args) {
             switch (method.getName()) {
                 case "getLocation": return location;
                 case "getTeam": return Team.A;
                 case "getType": return UnitType.RAT_KING;
-                case "getAllCheese": case "getCurrentRatCost": return 0;
+                case "getRoundNum": return 100;
+                case "getGlobalCheese": case "getAllCheese": return bank;
+                case "getCurrentRatCost": return ratCost;
+                case "getAllLocationsWithinRadiusSquared":
+                    return new MapLocation[] {location.add(Direction.EAST).add(Direction.EAST)};
+                case "canBuildRat": return births == 0 && bank >= ratCost;
+                case "buildRat": births++; bank -= ratCost; return null;
                 case "senseNearbyRobots": {
                     Team requested = args != null && args.length > 1 ? (Team) args[1] : null;
                     return robots.stream().filter(r -> (requested == null || r.getTeam() == requested) && location.distanceSquaredTo(r.getLocation()) <= 100).toArray(RobotInfo[]::new);
                 }
                 case "canMove": return true;
                 case "move": location = location.add((Direction) args[0]); moves++; return null;
-                case "setIndicatorString": case "writeSharedArray": return null;
+                case "writeSharedArray": shared[(Integer) args[0]] = (Integer) args[1]; return null;
+                case "setIndicatorString": return null;
                 default: return method.getReturnType() == boolean.class ? false : method.getReturnType() == int.class ? 0 : null;
             }
         }

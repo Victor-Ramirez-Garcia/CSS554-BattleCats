@@ -1,32 +1,42 @@
 package battlecats;
 
-import battlecode.common.*;
+import battlecode.common.Direction;
+import battlecode.common.GameActionException;
+import battlecode.common.GameConstants;
+import battlecode.common.MapLocation;
+import battlecode.common.RobotController;
+import battlecode.common.RobotInfo;
+import battlecode.common.Team;
+import battlecode.common.UnitType;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Small stationary spawning baseline so the Baby Rat collector can run in matches. */
 public class RatKing {
-    private static final int strategic_reserve = 100;
-   private int spawned;
+  private final FoodBudget foodBudget = new FoodBudget();
+  private int spawned;
 
-    public void takeTurn(RobotController rc) throws GameActionException {
-        rc.setIndicatorString("KING spawned=" + spawned);
+  public void takeTurn(RobotController rc) throws GameActionException {
+    foodBudget.observeStart(rc.getGlobalCheese());
+    rc.setIndicatorString("KING spawned=" + spawned);
+    avoidEnemyThreats(rc);
 
-        avoidEnemyThreats(rc);
-
-        if (rc.getAllCheese() > rc.getCurrentRatCost() + strategic_reserve){
-            MapLocation[] potentialSpawnLocations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
-
-            for (MapLocation loc : potentialSpawnLocations){
-                if (rc.canBuildRat(loc)){
-                    rc.buildRat(loc);
-                    break;
-                }
-            }
+    int ratCost = rc.getCurrentRatCost();
+    if (foodBudget.canSpawn(rc.getGlobalCheese(), ratCost)) {
+      MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
+      for (MapLocation location : locations) {
+        if (rc.canBuildRat(location)) {
+          rc.buildRat(location);
+          foodBudget.recordBirth(ratCost);
+          spawned++;
+          break;
         }
-        rc.writeSharedArray(0,rc.getLocation().x);
-        rc.writeSharedArray(1,rc.getLocation().y);
+      }
     }
+    CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    KingSignal.publish(rc);
+    foodBudget.finishTurn(rc.getGlobalCheese());
+  }
 
     private void avoidEnemyThreats(RobotController rc) throws GameActionException {
         Team enemy = rc.getTeam() == Team.A ? Team.B : Team.A;

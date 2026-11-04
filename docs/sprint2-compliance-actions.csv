@@ -1,0 +1,15 @@
+Case,BabyCatBites,KingCatBites,CatTraps,DirtPlacements,Digs,Exceptions,AtLimitTurns,MaxBytecodes
+DefaultSmall-A,326,7,49,32,32,0,0,6516
+DefaultSmall-B,312,10,50,36,39,0,0,5315
+DefaultMedium-A,349,5,50,30,80,0,0,6300
+DefaultMedium-B,279,0,54,30,55,0,0,6188
+DefaultLarge-A,511,22,64,43,89,0,0,6529
+DefaultLarge-B,594,10,50,51,96,0,0,6825
+cheesefarm-A,86,0,14,4,66,0,0,4651
+cheesefarm-B,110,0,18,5,52,0,0,6429
+minimaze-A,0,0,0,0,24,0,0,3540
+minimaze-B,0,0,0,0,23,0,0,3747
+safelycontained-A,0,0,0,0,3,0,0,3256
+safelycontained-B,0,0,0,0,16,0,0,3075
+pipes-A,0,0,0,0,1,0,0,2258
+pipes-B,0,0,0,0,1,0,0,2282
