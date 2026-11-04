@@ -8,14 +8,19 @@ import battlecode.common.UnitType;
 
 /** Fresh home coordinates for this bot's single king; only the king publishes. */
 public final class KingSignal {
+
+  //PUBLIC VARS
+
+
+  //PRIVATE VARS
   private static final int X_SLOT = 0;
   private static final int Y_SLOT = 1;
   private static final int STAMP_SLOT = 2;
   // Experimental freshness window: accept the previous king turn plus timestamp quantization.
   private static final int MAX_AGE_ROUNDS = 3;
 
-  private KingSignal() {}
 
+  //PUBLIC METHODS
   /** Publishes after king movement. Engine 1.2.6 only permits kings to write shared memory. */
   public static void publish(RobotController rc) throws GameActionException {
     // A bytecode pause between coordinate writes must not expose a mixed home as fresh.
@@ -53,4 +58,8 @@ public final class KingSignal {
     // A paused reader can resume after the king starts another publication. Discard that read.
     return rc.getRoundNum() == round ? location : null;
   }
+
+  
+  //PRIVATE METHODS
+  private KingSignal() {}
 }

@@ -12,6 +12,11 @@ import battlecode.common.UnitType;
 
 /** Opportunistic construction that keeps collection routes and the king's exits open. */
 public class Construction {
+
+  //PUBLIC VARS
+
+
+  //PRIVATE VARS
   // Experiments: spend on traps only within two tiles of a cat; screens may delay a cat
   // three tiles away. These are reach estimates, not engine attack or trap-trigger radii.
   private static final int TRAP_CAT_DISTANCE_SQUARED = 4;
@@ -23,6 +28,8 @@ public class Construction {
   private boolean placedCatTrap;
   private boolean placedScreen;
 
+
+  //PUBLIC METHODS
   /**
    * Uses at most one action and never moves or pursues a cat. The collector should first
    * attempt immediate delivery/pickup, and still evaluate escape movement after this call.
@@ -46,6 +53,14 @@ public class Construction {
     return catPart != null && tryScreen(rc, home, objective, catPart);
   }
 
+    /** Removes only the next dirt obstruction when doing so can release carried food to the bank. */
+  public boolean clearDeliveryRoute(RobotController rc, MapLocation home)
+      throws GameActionException {
+    return tryClearRoute(rc, home, true);
+  }
+  
+
+  //PRIVATE METHODS
   private boolean tryCatTrap(RobotController rc, MapLocation catPart)
       throws GameActionException {
     if (placedCatTrap || !FoodBudget.canSpend(rc.getGlobalCheese(), TrapType.CAT_TRAP.buildCost)) {
@@ -68,12 +83,6 @@ public class Construction {
       }
     }
     return false;
-  }
-
-  /** Removes only the next dirt obstruction when doing so can release carried food to the bank. */
-  public boolean clearDeliveryRoute(RobotController rc, MapLocation home)
-      throws GameActionException {
-    return tryClearRoute(rc, home, true);
   }
 
   private boolean tryClearRoute(RobotController rc, MapLocation objective, boolean deliveringFood)

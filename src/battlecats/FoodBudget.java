@@ -14,19 +14,21 @@ public final class FoodBudget {
   private static final int DELIVERY_THRESHOLD = 200;    //what's this and why are we doing it
   private static final int SPENDING_RESERVE = 300;
   // Experiment: bootstrap or replace sixteen living babies; their initial purchases total 400.
-  private static final int BOOTSTRAP_BABIES = 16;
+  //private static final int BOOTSTRAP_BABIES = 16;
 
 
   // Engine rule: base 10 + 10 * floor(living babies / 4). At sixteen babies the next cost is 50.
+/*
   private static final int GROWTH_COST_THRESHOLD =
       GameConstants.BUILD_ROBOT_BASE_COST
           + GameConstants.BUILD_ROBOT_COST_INCREASE
               * (BOOTSTRAP_BABIES / GameConstants.NUM_ROBOTS_FOR_COST_INCREASE);
+*/
+
   // Experiment: each birth invests its purchase price again in future food.
   private static final int GROWTH_INVESTMENT_MULTIPLIER = 2;
   // Accounting bound: no int-valued purchase can require more credit than this.
-  private static final long MAX_GROWTH_CREDIT =
-      (long) GROWTH_INVESTMENT_MULTIPLIER * Integer.MAX_VALUE;
+  private static final long MAX_GROWTH_CREDIT = (long) GROWTH_INVESTMENT_MULTIPLIER * Integer.MAX_VALUE;
 
   private boolean hasBankSnapshot;
   private int bankAtPreviousBoundary;
@@ -34,7 +36,6 @@ public final class FoodBudget {
 
 
   //PUBLIC METHODS
-
   public static boolean needsDelivery(int globalCheese) {
     return globalCheese <= DELIVERY_THRESHOLD;
   }

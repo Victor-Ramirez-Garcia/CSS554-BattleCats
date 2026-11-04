@@ -5,6 +5,10 @@ import java.util.Random;
 
 /** Bounded wall-following navigation; uses legal moves rather than a revealed map. */
 public class Navigation {
+
+    //PUBLIC VARS
+
+    //PRIVATE VARS
     private final Random random;
     private final boolean clockwise;
     private MapLocation destination;
@@ -15,6 +19,8 @@ public class Navigation {
     private int hitDistance;
     private int wallSteps;
 
+
+    //PUBLIC METHODS
     public Navigation(int robotId) {
         random = new Random(robotId);
         clockwise = (robotId & 1) == 0;
@@ -80,6 +86,8 @@ public class Navigation {
         }
     }
 
+
+    //PRIVATE METHODS
     private void step(RobotController rc, Direction direction) throws GameActionException {
         if (rc.canTurn(direction)) {
             rc.turn(direction);

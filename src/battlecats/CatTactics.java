@@ -11,6 +11,11 @@ import battlecode.common.UnitType;
 
 /** Local cat engagement and worker escape; never attacks another team. */
 public final class CatTactics {
+
+  //PUBLIC VARS
+
+
+  //PRIVATE VARS
   // Experiments: use healthy, empty workers only, and pursue no farther than three tiles.
   // A terrain certificate prevents crushing, not the cat's 20-damage scratches.
   private static final int MIN_ENGAGING_HEALTH = 75;
@@ -25,7 +30,8 @@ public final class CatTactics {
   // after a turn changes what the worker can sense; cat positions are never remembered here.
   private MapLocation certifiedLocation;
 
-  //PUBLIC METHODS FOR OTHER FILES TO CALL
+
+  //PUBLIC METHODS
   public CatTactics() {}
 
   /**
@@ -161,7 +167,7 @@ public final class CatTactics {
   }
 
 
-  //PRIVATE METHODS FOR OTHER METHODS IN THIS CLASS
+  //PRIVATE METHODS
   //determines if an area is safe from pounce
   private boolean isCertified(RobotController rc, MapLocation location)
       throws GameActionException {
