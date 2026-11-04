@@ -4,12 +4,19 @@ import battlecode.common.GameConstants;
 
 /** Global food reserve and a king-owned ledger for income-funded population growth. */
 public final class FoodBudget {
+
+  //PUBLIC VARS
+
+
+  //PRIVATE VARS
   // Experiments for one king: request delivery at 100 food rounds and protect 150 food rounds.
   // The engine consumes two global cheese per king per round; more kings shorten this runway.
-  private static final int DELIVERY_THRESHOLD = 200;
+  private static final int DELIVERY_THRESHOLD = 200;    //what's this and why are we doing it
   private static final int SPENDING_RESERVE = 300;
   // Experiment: bootstrap or replace sixteen living babies; their initial purchases total 400.
   private static final int BOOTSTRAP_BABIES = 16;
+
+
   // Engine rule: base 10 + 10 * floor(living babies / 4). At sixteen babies the next cost is 50.
   private static final int GROWTH_COST_THRESHOLD =
       GameConstants.BUILD_ROBOT_BASE_COST
@@ -24,6 +31,9 @@ public final class FoodBudget {
   private boolean hasBankSnapshot;
   private int bankAtPreviousBoundary;
   private long growthCredit;
+
+
+  //PUBLIC METHODS
 
   public static boolean needsDelivery(int globalCheese) {
     return globalCheese <= DELIVERY_THRESHOLD;
@@ -55,8 +65,8 @@ public final class FoodBudget {
   /** The engine's current cost bands also permit replacement when opening workers have died. */
   public boolean canSpawn(int globalCheese, int ratCost) {
     return ratCost > 0
-        && canSpend(globalCheese, ratCost)
-        && (ratCost < GROWTH_COST_THRESHOLD || growthCredit >= investment(ratCost));
+        && canSpend(globalCheese, ratCost);
+        //&& (ratCost < GROWTH_COST_THRESHOLD || growthCredit >= investment(ratCost));
   }
 
   /** Call only after a successful birth, using its cost before the population increased. */
@@ -76,6 +86,8 @@ public final class FoodBudget {
     hasBankSnapshot = true;
   }
 
+
+  //PRIVATE METHODS
   private static long investment(int ratCost) {
     return (long) GROWTH_INVESTMENT_MULTIPLIER * ratCost;
   }

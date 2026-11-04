@@ -227,12 +227,12 @@ public final class CatTactics {
 
   //returns the nearest edge of the cat
   //consider moving this into faceCat
-  private static MapLocation nearestCatPart(MapLocation here, RobotInfo cat) {
-    MapLocation anchor = cat.getLocation();
-    return new MapLocation(
-        Math.max(anchor.x, Math.min(here.x, anchor.x + 1)),
-        Math.max(anchor.y, Math.min(here.y, anchor.y + 1)));
-  }
+  //private static MapLocation nearestCatPart(MapLocation here, RobotInfo cat) {
+  //  MapLocation anchor = cat.getLocation();
+  //  return new MapLocation(
+  //      Math.max(anchor.x, Math.min(here.x, anchor.x + 1)),
+  //      Math.max(anchor.y, Math.min(here.y, anchor.y + 1)));
+  //}
 
   //turns to face a specific cat
   private static boolean faceCat(RobotController rc, RobotInfo cat) throws GameActionException {
