@@ -12,6 +12,9 @@ import java.util.Arrays;
 
 /** Worker-scout: keep cheese flowing, take protected cat fights and build locally. */
 public class BabyRat {
+  //PUBLIC VARS
+
+  //PRIVATE VARS
   private static final int TARGET_TIMEOUT_ROUNDS = 80;
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
@@ -34,6 +37,7 @@ public class BabyRat {
   private int visionRound;
   private int visionActionCooldown;
 
+  //PUBLIC METHODS
   public BabyRat(int robotId) {
     navigation = new Navigation(robotId);
   }
@@ -120,6 +124,7 @@ public class BabyRat {
 
   }
 
+  //PRIVATE METHODS
   /** Banked food is global; cargo becomes food only when delivered. Keep the trip until empty. */
   private boolean returnFoodIfNeeded(RobotController rc, RobotInfo[] observations)
       throws GameActionException {

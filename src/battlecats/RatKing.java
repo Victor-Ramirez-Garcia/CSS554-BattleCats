@@ -13,9 +13,14 @@ import java.util.List;
 
 /** Small stationary spawning baseline so the Baby Rat collector can run in matches. */
 public class RatKing {
+
+  //PUBLIC VARS
+
+  //PRIVATE VARS
   private final FoodBudget foodBudget = new FoodBudget();
   private int spawned;
 
+  //PUBLIC METHODS
   public void takeTurn(RobotController rc) throws GameActionException {
     foodBudget.observeStart(rc.getGlobalCheese());
     rc.setIndicatorString("KING spawned=" + spawned);
@@ -38,6 +43,7 @@ public class RatKing {
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 
+  //PRIVATE METHODS
     private void avoidEnemyThreats(RobotController rc) throws GameActionException {
         Team enemy = rc.getTeam() == Team.A ? Team.B : Team.A;
         // Cats belong to NEUTRAL, so an opponent-only query hides them from evasion.
