@@ -11,99 +11,120 @@ import battlecode.common.UnitType;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Small stationary spawning baseline so the Baby Rat collector can run in matches. */
 public class RatKing {
-
-  //PUBLIC VARS
 
   //PRIVATE VARS
   private final FoodBudget foodBudget = new FoodBudget();
   private int spawned;
 
   //PUBLIC METHODS
+  /** Runs the king's food accounting, combat, evasion, spawning, and signaling for one turn. */
   public void takeTurn(RobotController rc) throws GameActionException {
     foodBudget.observeStart(rc.getGlobalCheese());
     rc.setIndicatorString("KING spawned=" + spawned);
-    avoidEnemyThreats(rc);
-
-    int ratCost = rc.getCurrentRatCost();
-    if (foodBudget.canSpawn(rc.getGlobalCheese(), ratCost)) {
-      MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
-      for (MapLocation location : locations) {
-        if (rc.canBuildRat(location)) {
-          rc.buildRat(location);
-          foodBudget.recordBirth(ratCost);
-          spawned++;
-          break;
-        }
-      }
-    }
     CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    avoidEnemyThreats(rc);
+    spawnRat(rc);
     KingSignal.publish(rc);
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 
   //PRIVATE METHODS
-    private void avoidEnemyThreats(RobotController rc) throws GameActionException {
-        Team enemy = rc.getTeam() == Team.A ? Team.B : Team.A;
-        // Cats belong to NEUTRAL, so an opponent-only query hides them from evasion.
-        RobotInfo[] sensed = rc.senseNearbyRobots();
-        List<RobotInfo> allies = findNearbyBabyRatAllies(rc);
-        List<RobotInfo> threats = new ArrayList<>();
-        for (RobotInfo robot : sensed) {
-            if (robot.getType() == UnitType.CAT
-                    || (robot.getTeam() == enemy && robot.getType() == UnitType.BABY_RAT)) {
-                threats.add(robot);
-            }
-        }
-        if (threats.isEmpty()) {
-            return;
-        }
-
-        Direction safest = null;
-        long safestDirectionScore = Long.MIN_VALUE;
-        MapLocation here = rc.getLocation();
-        for (Direction direction : Direction.values()) {
-            if (direction == Direction.CENTER || !rc.canMove(direction)) continue;
-            MapLocation directionLocation = here.add(direction);
-            if (!allies.isEmpty() && !withinDeliveryRange(directionLocation, allies)) continue;
-            long directionScore = 0;
-            for (RobotInfo threat : threats) {
-                boolean cat = threat.getType() == UnitType.CAT;
-                long priority = cat ? 1_000_000L : 1L;
-                if (isInThreatVision(directionLocation, threat)) directionScore -= cat ? 1_000_000_000L : 1_000L;
-                directionScore += priority * directionLocation.distanceSquaredTo(threat.getLocation());
-            }
-            if (directionScore > safestDirectionScore) {
-                safestDirectionScore = directionScore;
-                safest = direction;
-            }
-        }
-        if (safest != null) {
-            rc.move(safest);
+  /** Spawns at most one Baby Rat when the food budget permits an adjacent empty location. */
+  private void spawnRat(RobotController rc) throws GameActionException {
+    int globalCheese = rc.getGlobalCheese();
+    int ratCost = rc.getCurrentRatCost();
+    boolean canSpawn = foodBudget.canSpawn(globalCheese, ratCost);
+    if (!canSpawn) return;
+    MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 2);
+    for (MapLocation location : locations) {
+        if (rc.canBuildRat(location)) {
+            rc.buildRat(location);
+            foodBudget.recordBirth(ratCost);
+            spawned++;
+            break;
         }
     }
+  }
 
-    private List<RobotInfo> findNearbyBabyRatAllies(RobotController rc) throws GameActionException {
-        List<RobotInfo> allies = new ArrayList<>();
-        for (RobotInfo robot : rc.senseNearbyRobots(-1, rc.getTeam())) {
-            if (robot.getType() == UnitType.BABY_RAT) allies.add(robot);
+  /** Moves to the safest legal adjacent location while preserving delivery range to allies. */
+  private void avoidEnemyThreats(RobotController rc) throws GameActionException {
+    List<RobotInfo> threats = senseThreats(rc);
+    if (threats.isEmpty()) return;
+
+    List<RobotInfo> allies = senseTeamAllies(rc);
+    MapLocation safestLocation = null;
+    long safestLocationScore = Long.MIN_VALUE;
+    MapLocation here = rc.getLocation();
+
+    MapLocation[] movableLocations = rc.getAllLocationsWithinRadiusSquared(here, 2);
+    for (MapLocation location : movableLocations) {
+        Direction direction = here.directionTo(location);
+        if (direction == Direction.CENTER || !rc.canMove(direction)) continue;
+        if (!allies.isEmpty() && !teamAlliesWithinDeliveryRange(location, allies)) continue;
+        long locationCandidateScore = scoreLocationCandidateBySafety(location, threats);
+        if (locationCandidateScore > safestLocationScore) {
+            safestLocationScore = locationCandidateScore;
+            safestLocation = location;
         }
-        return allies;
     }
+    if (safestLocation != null) {
+        rc.move(here.directionTo(safestLocation));
+    }
+  }
 
-    private boolean withinDeliveryRange(MapLocation location, List<RobotInfo> allies) {
-        for (RobotInfo ally : allies) {
-            if (location.distanceSquaredTo(ally.getLocation())
-                    <= GameConstants.CHEESE_TRANSFER_RADIUS_SQUARED) return true;
-        }
-        return false;
+  /** Returns nearby cats and enemy Baby Rats that the king should treat as threats. */
+  private List<RobotInfo> senseThreats(RobotController rc) throws GameActionException {
+    Team enemy = rc.getTeam() == Team.A ? Team.B : Team.A;
+    RobotInfo[] sensed = rc.senseNearbyRobots();
+    List<RobotInfo> threats = new ArrayList<>();
+    for (RobotInfo robot : sensed) {
+      if (robot.getType() == UnitType.CAT
+              || (robot.getTeam() == enemy && robot.getType() == UnitType.BABY_RAT)) {
+        threats.add(robot);
+      }
     }
+    return threats;
+  }
 
-    private boolean isInThreatVision(MapLocation location, RobotInfo threat) {
-        UnitType type = threat.getType();
-        return threat.getLocation().isWithinDistanceSquared(location,
-                type.visionConeRadiusSquared, threat.getDirection(),
-                type.visionConeAngle, false);
+  /** Returns nearby allied Baby Rats that may need to receive delivered cheese. */
+  private List<RobotInfo> senseTeamAllies(RobotController rc) throws GameActionException {
+    List<RobotInfo> allies = new ArrayList<>();
+    for (RobotInfo robot : rc.senseNearbyRobots(-1, rc.getTeam())) {
+        if (robot.getType() == UnitType.BABY_RAT) allies.add(robot);
     }
+    return allies;
+  }
+
+  /** Checks whether a candidate location remains within cheese-delivery range of an ally. */
+  private boolean teamAlliesWithinDeliveryRange(MapLocation location, List<RobotInfo> allies) {
+      for (RobotInfo ally : allies) {
+          if (location.distanceSquaredTo(ally.getLocation())
+                  <= GameConstants.CHEESE_TRANSFER_RADIUS_SQUARED) return true;
+      }
+      return false;
+  }
+
+  /** Scores a candidate by rewarding distance from threats and penalizing threat vision. */
+  private long scoreLocationCandidateBySafety(MapLocation location, List<RobotInfo> threats) {
+    long locationScore = 0;
+    for (RobotInfo threat : threats) {
+      boolean cat = threat.getType() == UnitType.CAT;
+      long priority = cat ? 1_000_000L : 1L;
+      if (locationCandidateIsInThreatVision(location, threat)) {
+        locationScore -= cat ? 1_000_000_000L : 1_000L;
+      }
+      locationScore += priority * location.distanceSquaredTo(threat.getLocation());
+    }
+    return locationScore;
+  }
+
+  /** Checks whether a candidate location is within a threat's current vision cone. */
+  private boolean locationCandidateIsInThreatVision(MapLocation location, RobotInfo threat) {
+    UnitType type = threat.getType();
+    MapLocation threatLocation = threat.getLocation();
+    Direction threatFacing = threat.getDirection();
+    return threatLocation.isWithinDistanceSquared(
+        location, type.visionConeRadiusSquared, threatFacing, type.visionConeAngle, false);
+  }
 }

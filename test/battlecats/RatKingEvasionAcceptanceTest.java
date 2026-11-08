@@ -75,7 +75,7 @@ public class RatKingEvasionAcceptanceTest {
        VALUE: A nearby friendly baby rat is returned.
        SCENARIO: A friendly baby rat is sensed.
        PREVENTS: Losing valid cheese-delivery allies. */
-    @Test public void findNearbyBabyRatAlliesReturnsFriendlyBabyRats() throws Exception {
+    @Test public void senseTeamAlliesReturnsFriendlyBabyRats() throws Exception {
         World world = world(friend(UnitType.BABY_RAT, ALLY_NEAR));
         assertEquals(1, findAllies(world).size());
     }
@@ -84,7 +84,7 @@ public class RatKingEvasionAcceptanceTest {
        VALUE: Enemy baby rats and non-baby units are rejected.
        SCENARIO: An enemy baby rat and enemy cat are sensed.
        PREVENTS: Maintaining delivery range to the wrong unit. */
-    @Test public void findNearbyBabyRatAlliesRejectsInvalidAllies() throws Exception {
+    @Test public void senseTeamAlliesRejectsInvalidAllies() throws Exception {
         World world = world(enemy(UnitType.BABY_RAT, ALLY_NEAR), enemy(UnitType.CAT, ALLY_FAR));
         assertTrue(findAllies(world).isEmpty());
     }
@@ -127,17 +127,19 @@ public class RatKingEvasionAcceptanceTest {
 
     @SuppressWarnings("unchecked")
     private static List<RobotInfo> findAllies(World world) throws Exception {
-        Method method = RatKing.class.getDeclaredMethod("findNearbyBabyRatAllies", RobotController.class);
+        Method method = RatKing.class.getDeclaredMethod("senseTeamAllies", RobotController.class);
         method.setAccessible(true);
         return (List<RobotInfo>) method.invoke(new RatKing(), world.rc);
     }
     private static boolean withinDeliveryRange(World world, MapLocation location, List<RobotInfo> allies) throws Exception {
-        Method method = RatKing.class.getDeclaredMethod("withinDeliveryRange", MapLocation.class, List.class);
+        Method method = RatKing.class.getDeclaredMethod(
+                "teamAlliesWithinDeliveryRange", MapLocation.class, List.class);
         method.setAccessible(true);
         return (Boolean) method.invoke(new RatKing(), location, allies);
     }
     private static boolean isInThreatVision(MapLocation location, RobotInfo threat) throws Exception {
-        Method method = RatKing.class.getDeclaredMethod("isInThreatVision", MapLocation.class, RobotInfo.class);
+        Method method = RatKing.class.getDeclaredMethod(
+                "locationCandidateIsInThreatVision", MapLocation.class, RobotInfo.class);
         method.setAccessible(true);
         return (Boolean) method.invoke(new RatKing(), location, threat);
     }
@@ -171,7 +173,7 @@ public class RatKingEvasionAcceptanceTest {
                 case "getGlobalCheese": case "getAllCheese": return bank;
                 case "getCurrentRatCost": return ratCost;
                 case "getAllLocationsWithinRadiusSquared":
-                    return new MapLocation[] {location.add(Direction.EAST).add(Direction.EAST)};
+                    return new MapLocation[] {location.add(Direction.EAST)};
                 case "canBuildRat": return births == 0 && bank >= ratCost;
                 case "buildRat": births++; bank -= ratCost; return null;
                 case "senseNearbyRobots": {
