@@ -49,6 +49,9 @@ public class BabyRat {
     currentRobots = null;
     rememberKing(rc);
     RobotInfo[] observations = visibleRobots(rc);
+    if (RatKingCreation(rc, observations)) {
+      return;
+    }
     if (returnFoodIfNeeded(rc, observations)) {
       return;
     }
@@ -125,6 +128,70 @@ public class BabyRat {
   }
 
   //PRIVATE METHODS
+  /** Attempts the one-time center upgrade when the local rat-king rules are satisfied. */
+  private boolean RatKingCreation(RobotController rc, RobotInfo[] observations)
+      throws GameActionException {
+    MapLocation center = rc.getLocation();
+    if (rc.getRoundNum() > 1200 || rc.getGlobalCheese() < 50 || !rc.isActionReady()) {
+      return false;
+    }
+
+    int alliedKings = 0;
+    int alliedRats = 0;
+    Team ownTeam = rc.getTeam();
+    for (RobotInfo robot : observations) {
+      if (robot.getTeam() == ownTeam && robot.getType() == UnitType.RAT_KING) {
+        alliedKings++;
+      }
+      if (robot.getTeam() == ownTeam
+          && robot.getType() == UnitType.BABY_RAT
+          && isInSurroundingSquare(center, robot.getLocation())) {
+        alliedRats++;
+      }
+      if ((robot.getType() == UnitType.RAT_KING || robot.getType() == UnitType.CAT)
+          && overlapsSurroundingSquare(center, robot)) {
+        return false;
+      }
+    }
+    if (alliedKings >= 5 || alliedRats < 7 || !surroundingSquareIsPassable(rc, center)) {
+      return false;
+    }
+    if (rc.canBuildRat(center)) {
+      rc.buildRat(center);
+      return true;
+    }
+    return false;
+  }
+
+  /** Returns whether every tile in the candidate king's surrounding 3x3 is sensed and passable. */
+  private boolean surroundingSquareIsPassable(RobotController rc, MapLocation center)
+      throws GameActionException {
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        MapLocation tile = new MapLocation(center.x + dx, center.y + dy);
+        if (!rc.canSenseLocation(tile) || !rc.senseMapInfo(tile).isPassable()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /** Returns whether any occupied tile of a cat or rat king intersects the candidate 3x3 square. */
+  private boolean overlapsSurroundingSquare(MapLocation center, RobotInfo robot) {
+    for (MapLocation part : robot.getType().getAllTypeLocations(robot.getLocation())) {
+      if (isInSurroundingSquare(center, part)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Returns whether a location lies within one tile of the candidate center in both axes. */
+  private boolean isInSurroundingSquare(MapLocation center, MapLocation location) {
+    return Math.abs(location.x - center.x) <= 1 && Math.abs(location.y - center.y) <= 1;
+  }
+
   /** Banked food is global; cargo becomes food only when delivered. Keep the trip until empty. */
   private boolean returnFoodIfNeeded(RobotController rc, RobotInfo[] observations)
       throws GameActionException {
