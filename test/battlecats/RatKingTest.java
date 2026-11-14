@@ -19,7 +19,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** Minimal acceptance coverage for the rat king's evasion helpers. */
-public class RatKingEvasionAcceptanceTest {
+public class RatKingTest {
     private static final MapLocation KING = new MapLocation(10, 10);
     private static final MapLocation CAT_WEST = new MapLocation(7, 10);
     private static final MapLocation ALLY_NEAR = new MapLocation(10, 11);
