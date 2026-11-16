@@ -20,7 +20,7 @@ import sys
 import time
 import uuid
 
-from sim_runtime import OPEN_PACKAGES, REPLAY_READER, locate_engine, locate_jdk
+from sim_runtime import CHECKPOINTS, OPEN_PACKAGES, REPLAY_READER, locate_engine, locate_jdk
 from sim_report import print_summary, write_report
 from sim_versions import choose_versions, print_versions, version_catalog
 
@@ -243,14 +243,14 @@ def read_match(output: Path, case: dict, java: Path, engine: Path, reader: Path,
     metrics = output / (case["case"] + "-engine.csv")
     command([str(java), "-cp", os.pathsep.join([str(reader), str(engine)]),
              "SimulationReplayMetrics", str(output / case["replay"]), str(metrics),
-             "100,250,500,1000", case["side"]])
+             ",".join(map(str, CHECKPOINTS)), case["side"]])
     with metrics.open(encoding="utf-8", newline="") as handle:
         snapshots = list(csv.DictReader(handle))
     finals = [row for row in snapshots if row["Checkpoint"] == "FINAL"]
     if len(finals) != 2 or {row["Side"] for row in finals} != {"A", "B"}:
         raise RuntimeError(f"Incomplete replay metrics: {case['case']}")
     final_round = int(finals[0]["Round"])
-    for checkpoint in (100, 250, 500, 1000):
+    for checkpoint in CHECKPOINTS:
         if checkpoint <= final_round:
             group = [row for row in snapshots if row["Checkpoint"] == f"ROUND_{checkpoint}"]
             if len(group) != 2 or {row["Side"] for row in group} != {"A", "B"}:

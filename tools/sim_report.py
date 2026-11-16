@@ -52,12 +52,137 @@ def _pairs(rows: list[dict], checkpoint: str) -> list[tuple[dict, dict]]:
         final_round = _number(candidate, "FinalRound")
         if checkpoint == "FINAL" and round_number != final_round:
             continue
-        if checkpoint == "ROUND_1000" and (round_number != 1000 or final_round < 1000):
+        if checkpoint.startswith("ROUND_") and (round_number != int(checkpoint[6:])
+                                                or final_round < round_number):
             continue
         if checkpoint == "COMMON_1000" and round_number != min(1000, final_round):
             continue
         result.append((candidate, baseline))
     return result
+
+
+def fixed_checkpoint(rows: list[dict], final: list[tuple[dict, dict]]) -> str | None:
+    """Latest ROUND_n checkpoint recorded for every completed pair, if any.
+
+    Strong opponents can end games early, so final totals mix durations. The
+    fixed round compares all completed games at the same time.
+    """
+    if not final:
+        return None
+    cases = {str(pair[0]["Case"]) for pair in final}
+    best = None
+    for checkpoint in {str(row.get("Checkpoint")) for row in rows}:
+        if not re.fullmatch(r"ROUND_\d+", checkpoint):
+            continue
+        if {str(pair[0]["Case"]) for pair in _pairs(rows, checkpoint)} >= cases:
+            if best is None or int(checkpoint[6:]) > int(best[6:]):
+                best = checkpoint
+    return best
+
+
+# (label, column, aggregate). "sum" totals all games; "mean" averages per game.
+# Lower is better for losses and bites taken; the report states values, not verdicts.
+MARGIN_METRICS = [
+    ("Delivered cheese", "DeliveredCheese", "sum"),
+    ("Share of cheese delivered", "DeliveredCheese", "share"),
+    # LastKingAliveRound is a whole-match value even in ROUND_n rows, so it
+    # would mislabel fixed-round windows; survival here is per checkpoint.
+    ("Starting king survival (rounds, mean)", "StartingKingDeathRound", "survival"),
+    ("First delivery round (mean of games with one)", "FirstDeliveryRound", "first"),
+    ("Baby Rats spawned", "RatsSpawned", "sum"),
+    ("Peak Baby Rats (mean)", "PeakBabyRats", "mean"),
+    ("Kings formed by promotion", "KingsFormed", "sum"),
+    ("Peak kings (max)", "PeakKings", "max"),
+    ("Bites on enemy rats", "BitesOnEnemyRats", "sum"),
+    ("Bites on enemy kings", "BitesOnEnemyKings", "sum"),
+    ("Bites on cats", "BitesOnCats", "sum"),
+    ("Cat damage (engine)", "CatDamage", "sum"),
+    ("Bites taken by own kings", "KingBitesTaken", "sum"),
+    ("Baby Rats lost", "RatsLost", "sum"),
+    ("Kings lost", "KingsLost", "sum"),
+    ("Rat traps on map", "RatTraps", "sum"),
+    ("Cat traps on map", "CatTraps", "sum"),
+    ("Dirt on map", "Dirt", "sum"),
+]
+
+
+def _has(rows: list[dict], column: str) -> bool:
+    return bool(rows) and all(str(row.get(column, "")).strip() != "" for row in rows)
+
+
+def _aggregate(rows: list[dict], opponents: list[dict], column: str, kind: str):
+    """One side's value for a metric; None when it is undefined for these games."""
+    if kind == "share":
+        ours = sum(_number(row, column) for row in rows)
+        total = ours + sum(_number(row, column) for row in opponents)
+        return ours / total if total else None
+    values = [_number(row, column) for row in rows]
+    if kind == "survival":
+        # 0 means the starting king outlived the replay; count the whole match.
+        values = [value or _number(row, "Round") for value, row in zip(values, rows)]
+    if kind == "first":
+        values = [value for value in values if value]
+    if not values:
+        return None
+    if kind == "sum":
+        return sum(values)
+    if kind == "max":
+        return max(values)
+    return sum(values) / len(values)
+
+
+def margin_values(pairs: list[tuple[dict, dict]]) -> list[tuple[str, str, object, object]]:
+    """(label, kind, candidate, baseline) for each metric present in every row."""
+    candidates, baselines = [pair[0] for pair in pairs], [pair[1] for pair in pairs]
+    result = []
+    for label, column, kind in MARGIN_METRICS:
+        if not _has(candidates + baselines, column) or (
+                kind == "survival" and not _has(candidates + baselines, "Round")):
+            continue
+        result.append((label, kind, _aggregate(candidates, baselines, column, kind),
+                       _aggregate(baselines, candidates, column, kind)))
+    return result
+
+
+def format_metric(kind: str, value) -> str:
+    if value is None:
+        return "n/a"
+    if kind == "share":
+        return f"{value * 100:.1f}%"
+    if isinstance(value, float):
+        return f"{value:,.1f}"
+    return f"{value:,}"
+
+
+def _margin_lines(rows: list[dict], final: list[tuple[dict, dict]]) -> list[str]:
+    # Results from the reader before margin metrics only have deliveries and
+    # cat damage, which the sections above already report.
+    if not final or not _has([row for pair in final for row in pair], "RatsSpawned"):
+        return []
+    fixed = fixed_checkpoint(rows, final)
+    windows = [("Final", final)]
+    if fixed:
+        windows.append((f"Round {fixed[6:]}", _pairs(rows, fixed)))
+    header = "| Measurement | " + " | ".join(
+        f"{name} candidate | {name} baseline" for name, _ in windows) + " |"
+    lines = ["## Margin metrics", "",
+             "These show how far apart the bots are when wins do not move, for example against a much "
+             "stronger opponent. Counts come from engine replay actions and sum every completed game "
+             "unless the label says mean or max. "
+             + (f"Round {fixed[6:]} is the latest fixed round every completed game reached, so that "
+                "column compares equal playing time. " if fixed else "")
+             + "Cheese share is the candidate's part of both teams' deliveries.", "",
+             header, "| --- |" + " ---: |" * (2 * len(windows))]
+    tables = [margin_values(pairs) for _, pairs in windows]
+    for index, (label, kind, _, _) in enumerate(tables[0]):
+        cells = []
+        for table in tables:
+            _, _, candidate, baseline = table[index]
+            cells += [format_metric(kind, candidate), format_metric(kind, baseline)]
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    lines.extend(["", "To compare two candidate versions against the same opponent, run both and use "
+                  "`python tools/sim_compare.py <earlier run> <later run>`.", ""])
+    return lines
 
 
 def _totals(pairs: list[tuple[dict, dict]]) -> tuple[int, int]:
@@ -244,6 +369,7 @@ def _write_pr_summary(output: Path, rows: list[dict], manifest: dict, summary: d
                   f"across {complete} completed matches. Reasons (same order): "
                   + ("; ".join(reason_labels) or "none recorded") + ".", "",
                   f"Coin-flip outcomes: **{coin_flips}**; included in wins and do not demonstrate a strategy advantage.", ""])
+    lines.extend(_margin_lines(rows, final))
     by_map = defaultdict(list)
     for pair in final:
         by_map[str(pair[0]["Map"])].append(pair)
@@ -359,6 +485,7 @@ def write_report(output: Path, rows: list[dict], manifest: dict, expected_cases:
         lines.extend(["Cooperation flags for individual replay checkpoints are recorded in results.csv; "
                       "aggregate results combine the reported phases.", ""])
 
+    lines.extend(_margin_lines(rows, final))
     lines.extend(["## Final deliveries by map", "",
                   "Maps with fewer than two starting sides are not a complete side-swapped comparison.", "",
                   "| Map | Complete pairs | Candidate starting sides | Candidate | Baseline | Change | Candidate wins |",
