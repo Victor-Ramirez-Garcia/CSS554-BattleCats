@@ -51,14 +51,12 @@ public class BabyRat {
     currentRobots = null;
     rememberKing(rc);
     RobotInfo[] observations = visibleRobots(rc);
-<<<<<<< Updated upstream
-=======
+
     if (RatKingCreation(rc, observations)) {
       return;
     }
 
     //determine if it needs to return food
->>>>>>> Stashed changes
     if (returnFoodIfNeeded(rc, observations)) {
       return;
     }
@@ -160,8 +158,7 @@ public class BabyRat {
   }
 
   //PRIVATE METHODS
-<<<<<<< Updated upstream
-=======
+
   /** Attempts the one-time center upgrade when the local rat-king rules are satisfied. */
   private boolean RatKingCreation(RobotController rc, RobotInfo[] observations)
       throws GameActionException {
@@ -227,7 +224,6 @@ public class BabyRat {
   }
  
 
->>>>>>> Stashed changes
   /** Banked food is global; cargo becomes food only when delivered. Keep the trip until empty. */
   private boolean returnFoodIfNeeded(RobotController rc, RobotInfo[] observations)
       throws GameActionException {
