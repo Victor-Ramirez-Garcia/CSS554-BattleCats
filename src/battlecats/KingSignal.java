@@ -15,7 +15,8 @@ public final class KingSignal {
   //PRIVATE VARS
   private static final int X_SLOT = 0;
   private static final int Y_SLOT = 1;
-  private static final int STAMP_SLOT = 2;
+  private static final int STAMP_SLOT = 2;    //A validation var, for if something tries to read the sharred array
+                                                //after RK was cut off for using too much bytecode
   // Experimental freshness window: accept the previous king turn plus timestamp quantization.
   private static final int MAX_AGE_ROUNDS = 3;
 
@@ -36,9 +37,11 @@ public final class KingSignal {
   public static MapLocation read(RobotController rc) throws GameActionException {
     int round = rc.getRoundNum();
     int stamp = rc.readSharedArray(STAMP_SLOT);
+    //make sure it's a valid write and the bytecode hasn't been interrupted or cut off
     if (stamp == 0) {
       return null;
     }
+    
     int age = round - 2 * (stamp - 1);
     if (age < 0 || age > MAX_AGE_ROUNDS) {
       return null;
