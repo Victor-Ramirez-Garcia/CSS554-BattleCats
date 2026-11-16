@@ -47,6 +47,7 @@ public class Construction {
     if (catPart != null && tryCatTrap(rc, catPart)) {
       return true;
     }
+    //I think that we shouldn't be doing this here
     if (tryClearRoute(rc, objective, false)) {
       return true;
     }
@@ -58,7 +59,7 @@ public class Construction {
       throws GameActionException {
     return tryClearRoute(rc, home, true);
   }
-  
+
 
   //PRIVATE METHODS
   private boolean tryCatTrap(RobotController rc, MapLocation catPart)
@@ -89,16 +90,19 @@ public class Construction {
       throws GameActionException {
     int cost = GameConstants.DIG_DIRT_CHEESE_COST;
     // Even after another carrier refills the bank, cargo pays first. Do not empty this trip.
+    //if the babyRat doestn't have enough OR only just has enough
     if (deliveringFood && rc.getRawCheese() <= cost) {
       return false;
     }
     // An emergency dig may use cargo, retaining some cheese to deliver, without touching the bank.
+    
     boolean usesCargo = deliveringFood && rc.getRawCheese() > cost;
-    if (objective == null
-        || objective.equals(rc.getLocation())
-        || (!usesCargo && !FoodBudget.canSpend(rc.getGlobalCheese(), cost))) {
+    if (objective == null                         //we don't have an objective (how would this even happen)
+        || objective.equals(rc.getLocation())     //our objective is our location  (how would this even happen)
+        || (!usesCargo && !FoodBudget.canSpend(rc.getGlobalCheese(), cost))) {    //we don't have enough cheese anywhere
       return false;
     }
+    //if we're delivering food and/or have enough cheese to use for the cost of digging 
     MapLocation next = rc.getLocation().add(rc.getLocation().directionTo(objective));
     if (rc.canSenseLocation(next)
         && rc.senseMapInfo(next).isDirt()
@@ -119,6 +123,7 @@ public class Construction {
     MapLocation here = rc.getLocation();
     Direction towardCat = here.directionTo(catPart);
     MapLocation target = here.add(towardCat);
+    //all the logic of when we wouldn't place the dirt based on the cats direction and distance
     if (towardCat == Direction.CENTER
         || (towardCat.dx != 0 && towardCat.dy != 0)
         || target.distanceSquaredTo(catPart) > SCREEN_CAT_DISTANCE_SQUARED
@@ -127,6 +132,7 @@ public class Construction {
         || !rc.canSenseLocation(target)) {
       return false;
     }
+    //all the logic of when we wouldn't place the dirt based on the terrain
     MapInfo terrain = rc.senseMapInfo(target);
     if (terrain.getCheeseAmount() > 0
         || terrain.hasCheeseMine()
@@ -136,12 +142,14 @@ public class Construction {
     }
     // Cardinal screens only: each side tile is a diagonal step from here and from beyond.
     // Check the far tile too, giving workers a local two-step bypass on either side.
+    //make sure at least one direction besides directly away from the cat is open
     Direction side = towardCat.rotateLeft().rotateLeft();
     if (!openTerrain(rc, target.add(side))
         || !openTerrain(rc, target.add(side.opposite()))
         || !openTerrain(rc, target.add(towardCat))) {
       return false;
     }
+    //actually place the dirt
     rc.placeDirt(target);
     placedScreen = true;
     return true;

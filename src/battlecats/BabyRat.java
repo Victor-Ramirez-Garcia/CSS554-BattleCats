@@ -43,36 +43,50 @@ public class BabyRat {
   }
 
   public void takeTurn(RobotController rc) throws GameActionException {
+    //if the BR is being carried
     if (rc.isBeingCarried() || rc.isBeingThrown()) {
       return;
     }
+    //reset what the BR senses (kingLocation and currentRobots)
     currentRobots = null;
     rememberKing(rc);
     RobotInfo[] observations = visibleRobots(rc);
+
     if (RatKingCreation(rc, observations)) {
       return;
     }
+
+    //determine if it needs to return food
     if (returnFoodIfNeeded(rc, observations)) {
       return;
     }
+
+    //if we know where a king is but don't have enough cheese to return
+    //then the BR should find cheese
     boolean returning = rc.getRawCheese() >= RETURN_CHEESE_THRESHOLD;
     boolean scanningForHome = kingLocation == null && homeScans < 4;
     if (!returning && !scanningForHome) {
       findCheese(rc);
     }
+
+    //
     MapLocation objective = returning ? kingLocation : cheeseTarget;
     if (scanningForHome) {
       objective = null;
     }
+    //if we're not returning but have a cheese target that we can pick up
     boolean pickedUp = !returning && pickUp(rc);
     if (pickedUp && returnFoodIfNeeded(rc, observations)) {
       return;
     }
+
     // Cat engagement gets the current sighting before economic navigation can turn it out of view.
     // Immediate pickups and food trips still take priority; only empty workers may approach.
+    //don't interrupt if we're currently attacking
     if (!scanningForHome && catTactics.engage(rc, observations)) {
       return;
     }
+    //if we have an objective (kingLovation, cheese, others to be added?), face the objective
     if (objective != null) {
       face(rc, objective);
     }
@@ -80,38 +94,53 @@ public class BabyRat {
     observations = combineObservations(observations, visibleRobots(rc));
 
     // Banking cargo gets the action before optional construction or combat.
+    //if we're returning
     if (returning) {
       rememberKing(rc);
+      //try to deliver the cheese to the king
       if (deliver(rc)) {
+        //?
         CatTactics.retreat(rc, observations, kingLocation);
         return;
       }
+    //if we're not returning
+    //try to pick up cheese
     } else if (!pickedUp) {
       pickedUp = pickUp(rc);
     }
-
+    //decide if we need to return food
     if (returnFoodIfNeeded(rc, observations)) {
       return;
     }
+    //try to build something
     construction.tryBuild(rc, kingLocation, objective, observations);
+    //ATTACK!!! KILL!!!
     CatTactics.tryBite(rc, observations);
+    //RUN AWAY!!!
     if (CatTactics.retreat(rc, observations, objective)) {
       return;
     }
+    //if we did pick up cheese, but didn't do anything else, don't do any thing more
     if (pickedUp) {
       return;
     }
 
     // A newborn inherits its king's facing; the king can initially be behind it.
+    //determine the area around it at it's birth for the best initial direction
     if (scanningForHome) {
       scanForHome(rc);
       return;
     }
+    //if we're returning, continue to do that
     if (returning) {
       returnCheese(rc);
+
+    //else search for cheese
     } else if (cheeseTarget == null) {
       rc.setIndicatorString("SEARCH delivered=" + deliveries);
       navigation.explore(rc);
+    
+    //or move towards cheese we've found
     } else {
       navigation.moveToward(rc, cheeseTarget);
       pickUp(rc);
@@ -120,14 +149,16 @@ public class BabyRat {
     }
     // Movement can bring a cat edge into range; canAttack prevents a second action.
     RobotInfo[] afterMovement = combineObservations(observations, visibleRobots(rc));
+    //after movement, if we have cheese, don't do anything
     if (returnFoodIfNeeded(rc, afterMovement)) {
       return;
     }
+    //after movement, if we don't have cheese, ATTACK!!!
     CatTactics.tryBite(rc, afterMovement);
-
   }
 
   //PRIVATE METHODS
+
   /** Attempts the one-time center upgrade when the local rat-king rules are satisfied. */
   private boolean RatKingCreation(RobotController rc, RobotInfo[] observations)
       throws GameActionException {
@@ -191,6 +222,7 @@ public class BabyRat {
   private boolean isInSurroundingSquare(MapLocation center, MapLocation location) {
     return Math.abs(location.x - center.x) <= 1 && Math.abs(location.y - center.y) <= 1;
   }
+ 
 
   /** Banked food is global; cargo becomes food only when delivered. Keep the trip until empty. */
   private boolean returnFoodIfNeeded(RobotController rc, RobotInfo[] observations)
@@ -228,6 +260,7 @@ public class BabyRat {
     return true;
   }
 
+  //used at beginning of babyRats life as part of determining if there's a best direction to go
   private boolean scanForHome(RobotController rc) throws GameActionException {
     if (kingLocation != null || homeScans >= 4) {
       return false;
@@ -239,6 +272,7 @@ public class BabyRat {
     }
     return true;
   }
+
 
   private RobotInfo[] combineObservations(RobotInfo[] before, RobotInfo[] after) {
     if (before == after) {
@@ -257,17 +291,18 @@ public class BabyRat {
   }
 
   /** Reuse a scan until movement, facing, an action or a new engine round can change its data. */
+  //returns all robots in current sensory range
   private RobotInfo[] visibleRobots(RobotController rc) throws GameActionException {
     MapLocation location = rc.getLocation();
     Direction direction = rc.getDirection();
     int round = rc.getRoundNum();
     int actionCooldown = rc.getActionCooldownTurns();
-    if (currentRobots == null
-        || !location.equals(visionLocation)
-        || direction != visionDirection
-        || round != visionRound
-        || actionCooldown != visionActionCooldown) {
-      currentRobots = rc.senseNearbyRobots();
+    if (currentRobots == null  //if the vars aren't set yet (beginning of game or something)
+        || !location.equals(visionLocation)   
+        || direction != visionDirection       
+        || round != visionRound               
+        || actionCooldown != visionActionCooldown) {  
+      currentRobots = rc.senseNearbyRobots(); //set all those vars
       visionLocation = location;
       visionDirection = direction;
       visionRound = round;
@@ -356,15 +391,21 @@ public class BabyRat {
   private void rememberKing(RobotController rc) throws GameActionException {
     Team ownTeam = rc.getTeam();
     boolean locallyVerified = false;
+    //if the kingLocation var is filled with something (we don't trust it to be accurate) and we can sense that location
+    //makes sure there are at least one king in sensory range
     if (kingLocation != null && rc.canSenseLocation(kingLocation)) {
-      RobotInfo king = rc.senseRobotAtLocation(kingLocation);
-      if (king == null || king.getTeam() != ownTeam || king.getType() != UnitType.RAT_KING) {
+      RobotInfo king = rc.senseRobotAtLocation(kingLocation);       //this is for a specific king for when we have more than one king
+      if (king == null                  //there's been an error in the kingLocatoin var, (it's died or warsn't overwritten after movement)
+        || king.getTeam() != ownTeam    //this shouldn't happen, but no harm in checking
+        || king.getType() != UnitType.RAT_KING) { //more error checking for the kingLocatoin var
         kingLocation = null;
       } else {
+        //set the kingLocation var, now we trust it for the rest of this method
         kingLocation = king.getLocation();
         locallyVerified = true;
       }
     }
+    //finds nearest king if there are multiple kings in sensory range
     int nearest = kingLocation == null ? Integer.MAX_VALUE : rc.getLocation().distanceSquaredTo(kingLocation);
     for (RobotInfo robot : visibleRobots(rc)) {
       if (robot.getTeam() == ownTeam && robot.getType() == UnitType.RAT_KING) {
@@ -376,6 +417,7 @@ public class BabyRat {
         }
       }
     }
+    //the above hasnt worked, and we need to have kingSignal write to kingLocation
     if (!locallyVerified) {
       MapLocation published = KingSignal.read(rc);
       if (published != null) {
