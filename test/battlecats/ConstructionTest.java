@@ -337,6 +337,93 @@ public class ConstructionTest {
     assertTrue(world.traps.isEmpty());
   }
 
+  @Test
+  public void ratTrapGuardsTheKingFromAnApproachingEnemyAfterCooperation() throws Exception {
+    World world = new World();
+    world.robots.add(robot(UnitType.BABY_RAT, Team.B, at(12, 10)));
+
+    assertTrue(new Construction().tryBuild(world.rc, at(8, 10), null, world.cats()));
+
+    assertEquals(TrapType.RAT_TRAP, world.traps.get(at(11, 10)));
+    assertEquals(500 - TrapType.RAT_TRAP.buildCost, world.globalCheese);
+    assertEquals(1, world.actions.size());
+  }
+
+  @Test
+  public void ratTrapAimsAtTheNearestPartOfAnEnemyKing() throws Exception {
+    World world = new World();
+    world.robots.add(robot(UnitType.RAT_KING, Team.B, at(13, 11))); // Nearest part is (12,10).
+
+    assertTrue(new Construction().tryBuild(world.rc, at(8, 10), null, world.cats()));
+
+    assertEquals(TrapType.RAT_TRAP, world.traps.get(at(11, 10)));
+  }
+
+  @Test
+  public void ratTrapNeedsPvpAnEnemyRatNearTheKingAndTheReserve() throws Exception {
+    String[] cases = {
+      "cooperation", "unknown home", "far from home", "own rat", "only a cat", "distant enemy",
+      "reserve", "engine refusal"
+    };
+    for (String name : cases) {
+      World world = new World();
+      MapLocation home = at(8, 10);
+      MapLocation enemy = at(12, 10);
+      Team enemyTeam = Team.B;
+      switch (name) {
+        case "cooperation":
+          world.cooperation = true;
+          break;
+        case "unknown home":
+          home = null;
+          break;
+        case "far from home":
+          home = at(2, 10);
+          break;
+        case "own rat":
+          enemyTeam = Team.A;
+          break;
+        case "distant enemy":
+          enemy = at(14, 10); // Two tiles beyond the trap: distance squared 9 exceeds 8.
+          break;
+        case "reserve":
+          world.globalCheese = 300 + TrapType.RAT_TRAP.buildCost - 1;
+          break;
+        case "engine refusal":
+          world.trapsAllowed = false;
+          break;
+        default:
+          break;
+      }
+      if (name.equals("only a cat")) {
+        world.addCat(at(20, 20)); // Too far for a cat trap; no enemy rat at all.
+      } else {
+        world.robots.add(robot(UnitType.BABY_RAT, enemyTeam, enemy));
+      }
+      int before = world.globalCheese;
+
+      assertFalse(name, new Construction().tryBuild(world.rc, home, null, world.cats()));
+
+      assertTrue(name, world.traps.isEmpty());
+      assertEquals(name, before, world.globalCheese);
+      assertTrue(name, world.actions.isEmpty());
+    }
+  }
+
+  @Test
+  public void oneWorkerPlacesAtMostOneRatTrap() throws Exception {
+    World world = new World();
+    world.robots.add(robot(UnitType.BABY_RAT, Team.B, at(12, 10)));
+    Construction construction = new Construction();
+    assertTrue(construction.tryBuild(world.rc, at(8, 10), null, world.cats()));
+    world.actionReady = true;
+    world.traps.clear(); // A triggered trap does not replenish this worker's budget.
+
+    assertFalse(construction.tryBuild(world.rc, at(8, 10), null, world.cats()));
+
+    assertEquals(1, world.actions.size());
+  }
+
   private static World screenWorld() {
     World world = new World();
     world.trapsAllowed = false;
@@ -517,13 +604,18 @@ public class ConstructionTest {
           return turningReady && args[0] != Direction.CENTER;
         case "canPlaceCatTrap":
           return canTrap((MapLocation) args[0], TrapType.CAT_TRAP);
+        case "canPlaceRatTrap":
+          return canTrap((MapLocation) args[0], TrapType.RAT_TRAP);
         case "placeCatTrap":
+        case "placeRatTrap":
+          TrapType trapType =
+              method.getName().equals("placeCatTrap") ? TrapType.CAT_TRAP : TrapType.RAT_TRAP;
           MapLocation trap = (MapLocation) args[0];
-          assertTrue("Trap placement must be legal", canTrap(trap, TrapType.CAT_TRAP));
-          traps.put(trap, TrapType.CAT_TRAP);
-          spend(TrapType.CAT_TRAP.buildCost);
+          assertTrue("Trap placement must be legal", canTrap(trap, trapType));
+          traps.put(trap, trapType);
+          spend(trapType.buildCost);
           actionReady = false;
-          actions.add("CAT_TRAP " + trap);
+          actions.add(trapType + " " + trap);
           return null;
         case "canPlaceDirt":
           return canPlaceDirt((MapLocation) args[0]);
