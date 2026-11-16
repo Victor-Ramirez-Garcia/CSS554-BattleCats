@@ -297,7 +297,7 @@ public class BabyRat {
     Direction direction = rc.getDirection();
     int round = rc.getRoundNum();
     int actionCooldown = rc.getActionCooldownTurns();
-    if (currentRobots == null  //we the vars aren't set yet (beginning of game or something)
+    if (currentRobots == null  //if the vars aren't set yet (beginning of game or something)
         || !location.equals(visionLocation)   
         || direction != visionDirection       
         || round != visionRound               

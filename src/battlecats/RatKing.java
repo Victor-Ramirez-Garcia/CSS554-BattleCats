@@ -27,6 +27,8 @@ public class RatKing {
     avoidEnemyThreats(rc);
 
     int ratCost = rc.getCurrentRatCost();
+
+    //spawning Logic
     if (foodBudget.canSpawn(rc.getGlobalCheese(), ratCost)) {
       MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
       for (MapLocation location : locations) {
