@@ -29,7 +29,7 @@ MARGIN_METRICS = (
     "BitesOnEnemyKings",
     "BitesOnCats",
     "KingBitesTaken",          # enemy bites on this team's kings
-    "RatsLost",
+    "RatsLost",                # Baby Rat deaths, excluding rats absorbed by a promotion
     "KingsLost",
     "StartingKingDeathRound",  # 0 = the original king is still alive
     "RatTraps",                # current count at the checkpoint, not cumulative
@@ -169,6 +169,11 @@ public class SimulationReplayMetrics {
                     Actions actions = new Actions(turn);
                     int actor = turn.robotId();
                     Integer actorTeam = teamOf.get(actor);
+                    // Engine 1.2.6 logs the rats a promotion absorbs as deaths in the same turn,
+                    // before UpgradeToRatKing. They were not lost in combat.
+                    boolean promotes = false;
+                    for (int k = 0; k < turn.actionsLength(); k++)
+                        promotes |= turn.actionsType(k) == Action.UpgradeToRatKing;
                     for (int k = 0; k < turn.actionsLength(); k++) {
                         int offset = actions.offset(k);
                         switch (turn.actionsType(k)) {
@@ -208,7 +213,7 @@ public class SimulationReplayMetrics {
                                     stats[deadTeam][KINGS_LOST]++;
                                     if (dead == startingKing[deadTeam] && stats[deadTeam][START_KING_DEATH] == 0)
                                         stats[deadTeam][START_KING_DEATH] = roundId;
-                                } else {
+                                } else if (!(promotes && deadTeam.equals(actorTeam))) {
                                     stats[deadTeam][RATS_LOST]++;
                                 }
                             }

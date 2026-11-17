@@ -60,6 +60,17 @@ class SimCompareTests(unittest.TestCase):
         self.assertIn("| small-A | 137 → 137 | baseline → baseline | 20% → 33% | 137 → alive (137) |", markdown)
         self.assertIn("Opponent: opponent-pool/champion-sprint2 (commit cccccccccccc, package awubot)", markdown)
 
+    def test_metric_missing_from_one_run_keeps_every_row_aligned(self):
+        old_rows = games(0, 137)
+        for row in old_rows:
+            del row["StartingKingDeathRound"]
+        before = self.run_folder("before", old_rows, candidate_commit="a" * 40, candidate_ref="HEAD~1")
+        after = self.run_folder("after", games(120, 0), candidate_commit="b" * 40, candidate_ref="HEAD")
+        markdown, _ = compare(load_run(before), load_run(after))
+        self.assertIn("| Starting king survival (rounds, mean) | n/a | 158.5 | n/a | n/a | 158.5 |", markdown)
+        self.assertIn("| Delivered cheese | 240 | 480 | +240 | 960 | 960 |", markdown)
+        self.assertIn("| Baby Rats lost | 0 | 24 | +24 |", markdown)
+
     def test_different_opponents_are_refused(self):
         before = self.run_folder("before", games(0, 137))
         after = self.run_folder("after", games(0, 137), baseline_commit="d" * 40)

@@ -20,7 +20,8 @@ from pathlib import Path
 import re
 import sys
 
-from sim_report import _escape, _pairs, fixed_checkpoint, format_metric, margin_values
+from sim_report import (
+    MARGIN_METRICS, _escape, _pairs, fixed_checkpoint, format_metric, margin_values)
 
 
 class RunMismatch(ValueError):
@@ -99,8 +100,14 @@ def _change(kind: str, before, after) -> str:
 def _metric_table(before_pairs, after_pairs) -> list[str]:
     lines = ["| Measurement | Before: candidate | After: candidate | Change | Before: opponent | After: opponent |",
              "| --- | ---: | ---: | ---: | ---: | ---: |"]
-    for (label, kind, cand_before, opp_before), (_, _, cand_after, opp_after) in zip(
-            margin_values(before_pairs), margin_values(after_pairs)):
+    # Runs from older readers lack some columns, so match rows by label, never by position.
+    before = {label: (kind, cand, opp) for label, kind, cand, opp in margin_values(before_pairs)}
+    after = {label: (kind, cand, opp) for label, kind, cand, opp in margin_values(after_pairs)}
+    for label, _, kind in MARGIN_METRICS:
+        if label not in before and label not in after:
+            continue
+        cand_before, opp_before = before.get(label, (kind, None, None))[1:]
+        cand_after, opp_after = after.get(label, (kind, None, None))[1:]
         lines.append(f"| {label} | {format_metric(kind, cand_before)} | {format_metric(kind, cand_after)} | "
                      f"{_change(kind, cand_before, cand_after)} | {format_metric(kind, opp_before)} | "
                      f"{format_metric(kind, opp_after)} |")
