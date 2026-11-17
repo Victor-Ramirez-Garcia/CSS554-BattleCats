@@ -24,9 +24,9 @@ public class Construction {
   private static final int SCREEN_CAT_DISTANCE_SQUARED = 9;
   // Experiment: protect more than the king's footprint and immediate spawn ring.
   private static final int HOME_CLEARANCE_SQUARED = 18;
-  // Experiments: rat traps defend the approach to the king (about four tiles out) against an
-  // enemy rat within two tiles of the trap. Enemies must step adjacent to trigger it (engine
-  // trigger radius squared 2), so a trap between the enemy and the king sits on its path.
+  // Engine rule: an enemy triggers a rat trap only within distance squared 2 of it.
+  // Experiments: place rat traps within about four tiles of the king, and only when an enemy
+  // rat is within two tiles of the trap, so the trap is near both the king and the threat.
   private static final int RAT_TRAP_HOME_DISTANCE_SQUARED = 20;
   private static final int RAT_TRAP_ENEMY_DISTANCE_SQUARED = 8;
 
@@ -97,9 +97,10 @@ public class Construction {
   }
 
   /**
-   * Places one rat trap between the king and an approaching enemy rat, only after cooperation.
-   * Engine rule: an enemy rat triggering our rat trap counts as our backstab and ends
-   * cooperation, so a trap placed earlier could start the PvP phase on our behalf.
+   * Places one rat trap on a tile next to this worker, toward a nearby enemy rat, close to the
+   * king, and only after cooperation. It lies between the enemy and the king only when this
+   * worker does. Engine rule (GameWorld.triggerTrap, 1.2.6): an enemy rat triggering our rat
+   * trap is our backstab and ends cooperation, so an earlier trap could start PvP for us.
    */
   private boolean tryRatTrap(RobotController rc, MapLocation home, RobotInfo[] visibleRobots)
       throws GameActionException {
@@ -119,8 +120,6 @@ public class Construction {
       if (direction != Direction.CENTER
           && target.distanceSquaredTo(enemy) <= RAT_TRAP_ENEMY_DISTANCE_SQUARED
           && target.distanceSquaredTo(home) <= RAT_TRAP_HOME_DISTANCE_SQUARED
-          && rc.canSenseLocation(target)
-          && rc.senseMapInfo(target).getCheeseAmount() == 0
           && rc.canPlaceRatTrap(target)) {
         // The engine checks occupancy, walls, dirt, mines, an existing trap and the team cap.
         rc.placeRatTrap(target);
