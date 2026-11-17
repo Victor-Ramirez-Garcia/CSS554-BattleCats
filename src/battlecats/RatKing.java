@@ -36,7 +36,7 @@ public class RatKing {
     int ratCost = rc.getCurrentRatCost();
     boolean canSpawn = foodBudget.canSpawn(globalCheese, ratCost);
     if (!canSpawn) return;
-    MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 2);
+    MapLocation[] locations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
     for (MapLocation location : locations) {
         if (rc.canBuildRat(location)) {
             rc.buildRat(location);
