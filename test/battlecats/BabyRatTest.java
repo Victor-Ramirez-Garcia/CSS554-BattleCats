@@ -1,8 +1,10 @@
 package battlecats;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import battlecode.common.Direction;
+import battlecode.common.GameConstants;
 import battlecode.common.MapInfo;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
@@ -17,115 +19,111 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
 
-/** Acceptance tests for a Baby Rat upgrading at its own center. */
+/** Acceptance tests for a Baby Rat becoming a Rat King where it stands. */
 public class BabyRatTest {
   private static final MapLocation CENTER = new MapLocation(10, 10);
 
   @Test
-  public void upgradesAtItsCenterWhenAllRequirementsAreMet() throws Exception {
-    // SPEC: A baby rat can become a rat king.
-    // VALUE: The center baby rat upgrades and spends exactly 50 cheese.
-    // SCENARIO: Seven allied baby rats surround an open center on round 100.
-    // PREVENTS: A valid rat-king opportunity being ignored.
+  public void becomesARatKingWhenTheEngineAllowsIt() throws Exception {
+    // SPEC: A Baby Rat can become a Rat King.
+    // VALUE: The rat upgrades through becomeRatKing and pays exactly 50 cheese.
+    // SCENARIO: Seven allied Baby Rats including this one fill an open 3x3 on round 100.
+    // PREVENTS: Calling the spawn API, which only Rat Kings may use, so no king ever forms.
     World world = validWorld();
 
     new BabyRat(1).takeTurn(world.rc);
 
     assertEquals(1, world.upgrades);
-    assertEquals(0, world.cheese);
+    assertEquals(400 - GameConstants.RAT_KING_UPGRADE_CHEESE_COST, world.cheese);
   }
 
   @Test
-  public void requiresAtLeastSevenAlliedRatsInTheSurroundingSquare() throws Exception {
-    // SPEC: At least seven allied rats must occupy the surrounding 3x3 square.
-    // VALUE: Six allied rats are insufficient.
-    // SCENARIO: The otherwise valid square contains only six allied baby rats.
-    // PREVENTS: Creating a king without enough nearby allied rats.
+  public void waitsWhileTheEngineRefusesTheUpgrade() throws Exception {
+    // SPEC: The engine decides whether this 3x3 is legal (rats, terrain, cats, kings, cap).
+    // VALUE: A refused upgrade spends nothing and the rat carries on with its turn.
+    // SCENARIO: Only six allied Baby Rats occupy the square.
+    // PREVENTS: Promoting in an illegal square or duplicating the engine's rules locally.
     World world = validWorld();
     world.robots.remove(world.robots.size() - 1);
 
     new BabyRat(1).takeTurn(world.rc);
 
     assertEquals(0, world.upgrades);
+    assertEquals(400, world.cheese);
   }
 
   @Test
-  public void rejectsAnImpassableTileInTheSurroundingSquare() throws Exception {
-    // SPEC: Every tile in the surrounding 3x3 square must be passable.
-    // VALUE: One impassable tile rejects the upgrade.
-    // SCENARIO: Seven allies are present, but one adjacent tile is a wall.
-    // PREVENTS: A king occupying or being surrounded by impassable terrain.
-    World world = validWorld();
-    world.walls.add(new MapLocation(9, 9));
+  public void aTeamPromotesAtMostOneBabyRatPerGame() throws Exception {
+    // SPEC: Team policy: one extra king per game; the new king records it in shared memory.
+    // VALUE: The promoted rat writes the flag, and a later rat in a valid square stays a worker.
+    // SCENARIO: The first rat promotes; a second rat with a fresh valid square then takes a turn.
+    // PREVENTS: Repeated promotions starving every king, as uncapped promotion did on minimaze.
+    World first = validWorld();
+    new BabyRat(1).takeTurn(first.rc);
+    assertEquals(1, first.upgrades);
+    assertEquals(1, first.shared[3]);
 
-    new BabyRat(1).takeTurn(world.rc);
+    World second = validWorld();
+    second.shared[3] = first.shared[3];
+    new BabyRat(2).takeTurn(second.rc);
 
-    assertEquals(0, world.upgrades);
+    assertEquals(0, second.upgrades);
+    assertEquals(400, second.cheese);
   }
 
   @Test
-  public void rejectsAThreeByThreeSquareOverlappingARatKingOrCat() throws Exception {
-    // SPEC: The 3x3 square cannot intersect a rat king or cat.
-    // VALUE: An existing cat or rat king in the square rejects the upgrade.
-    // SCENARIO: Seven allies are present and one blocking unit occupies an adjacent tile.
-    // PREVENTS: Overlapping enemy and newly created king footprints.
-    for (UnitType blocker : new UnitType[] {UnitType.CAT, UnitType.RAT_KING}) {
+  public void promotesOnlyWhileAKingRecentlyReportedSurplusIncome() throws Exception {
+    // SPEC: Team policy: promote only while a king's recent income could feed another king.
+    // VALUE: The rat promotes on a fresh report and stays a worker without one or on a stale one.
+    // SCENARIO: The king's two-round report stamp is missing, 0, 2 or 4 rounds old, or from the future.
+    // PREVENTS: An extra king starving the team on poor maps such as minimaze.
+    Object[][] cases = {
+      {"no report", null, 0},
+      {"reported this round", 100, 1},
+      {"reported two rounds ago", 98, 1},
+      {"reported four rounds ago", 96, 0},
+      {"stamp from a later round", 104, 0},
+    };
+    for (Object[] c : cases) {
       World world = validWorld();
-      world.robots.add(robot(blocker, Team.B, new MapLocation(9, 9)));
+      world.shared[4] = 0;
+      if (c[1] != null) {
+        world.fundPromotionAt((int) c[1]);
+      }
 
       new BabyRat(1).takeTurn(world.rc);
 
-      assertEquals(blocker.toString(), 0, world.upgrades);
+      assertEquals((String) c[0], (int) c[2], world.upgrades);
     }
   }
 
   @Test
-  public void rejectsCreationWhenFiveRatKingsAlreadyExist() throws Exception {
-    // SPEC: The team may have no more than five rat kings.
-    // VALUE: A sixth rat king is not created.
-    // SCENARIO: Five allied rat kings already exist in the sensed robots.
-    // PREVENTS: Exceeding the rat-king population cap.
-    World world = validWorld();
-    for (int i = 0; i < 5; i++) {
-      world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20 + i, 20)));
+  public void promotionPolicyStopsAfterRound1200AndKeepsTheSpendingReserve() throws Exception {
+    // SPEC: Team policy, not engine rules: no promotion after round 1200, and the upgrade
+    // must leave the 300-cheese spending reserve because each king eats food every round.
+    Object[][] cases = {
+      {"round 1200", 1200, 350, 1},
+      {"round 1201", 1201, 400, 0},
+      {"exactly the reserve after paying", 100, 350, 1},
+      {"one below the reserve after paying", 100, 349, 0},
+    };
+    for (Object[] c : cases) {
+      World world = validWorld();
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+      world.fundPromotionAt(world.round);
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      assertEquals((String) c[0], (int) c[3], world.upgrades);
     }
-
-    new BabyRat(1).takeTurn(world.rc);
-
-    assertEquals(0, world.upgrades);
-  }
-
-  @Test
-  public void rejectsCreationAfterRound1200() throws Exception {
-    // SPEC: No rat king may be created after round 1200.
-    // VALUE: Round 1201 rejects the upgrade.
-    // SCENARIO: All spatial and population requirements are otherwise valid.
-    // PREVENTS: Late-game rat-king creation.
-    World world = validWorld();
-    world.round = 1201;
-
-    new BabyRat(1).takeTurn(world.rc);
-
-    assertEquals(0, world.upgrades);
-  }
-
-  @Test
-  public void requiresFiftyCheeseForTheUpgrade() throws Exception {
-    // SPEC: Upgrading costs 50 cheese.
-    // VALUE: Forty-nine cheese cannot fund the upgrade.
-    // SCENARIO: All spatial, population and round requirements are valid.
-    // PREVENTS: Creating a rat king without paying its full cost.
-    World world = validWorld();
-    world.cheese = 49;
-
-    new BabyRat(1).takeTurn(world.rc);
-
-    assertEquals(0, world.upgrades);
   }
 
   private static World validWorld() {
     World world = new World();
-    int[][] offsets = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}};
+    world.fundPromotionAt(world.round);
+    // Six neighbors plus this rat make the engine's seven.
+    int[][] offsets = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}};
     for (int i = 0; i < offsets.length; i++) {
       world.robots.add(robot(UnitType.BABY_RAT, Team.A,
           new MapLocation(CENTER.x + offsets[i][0], CENTER.y + offsets[i][1])));
@@ -143,8 +141,8 @@ public class BabyRatTest {
         RobotController.class.getClassLoader(), new Class<?>[] {RobotController.class}, this);
     final List<RobotInfo> robots = new ArrayList<>();
     final java.util.Set<MapLocation> walls = new java.util.HashSet<>();
-    final List<MapLocation> builtAt = new ArrayList<>();
-    int cheese = 50;
+    final int[] shared = new int[64];
+    int cheese = 400;
     int round = 100;
     int upgrades;
 
@@ -154,7 +152,12 @@ public class BabyRatTest {
       switch (name) {
         case "getLocation": return CENTER;
         case "getTeam": return Team.A;
-        case "getType": return UnitType.BABY_RAT;
+        case "getType": return upgrades > 0 ? UnitType.RAT_KING : UnitType.BABY_RAT;
+        case "readSharedArray": return shared[(Integer) args[0]];
+        case "writeSharedArray":
+          assertTrue("Only rat kings can write to the shared array", upgrades > 0);
+          shared[(Integer) args[0]] = (Integer) args[1];
+          return null;
         case "getRoundNum": return round;
         case "getMapWidth":
         case "getMapHeight": return 30;
@@ -170,16 +173,40 @@ public class BabyRatTest {
         case "senseNearbyMapInfos": return mapInfos();
         case "canSenseLocation": return true;
         case "senseMapInfo": return info((MapLocation) args[0]);
-        case "canBuildRat": return cheese >= 50 && builtAt.isEmpty();
+        case "canBuildRat":
         case "buildRat":
+          throw new AssertionError("Only rat kings can spawn other rats");
+        case "canBecomeRatKing": return engineAllowsUpgrade();
+        case "becomeRatKing":
+          assertTrue("Upgrade must be legal", engineAllowsUpgrade());
           upgrades++;
-          cheese -= 50;
-          builtAt.add((MapLocation) args[0]);
+          cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
         case "getDirection": return Direction.NORTH;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }
+    }
+
+    /** The engine's rules for this fixture: seven allied Baby Rats in the 3x3 counting this one. */
+    /** Writes the king's income report as KingSignal stamps it on the given round. */
+    void fundPromotionAt(int reportRound) {
+      shared[4] = reportRound / 2 + 1;
+    }
+
+    private boolean engineAllowsUpgrade() {
+      if (upgrades > 0 || cheese < GameConstants.RAT_KING_UPGRADE_CHEESE_COST) {
+        return false;
+      }
+      int rats = 1;
+      for (RobotInfo robot : robots) {
+        MapLocation at = robot.getLocation();
+        boolean inSquare = Math.abs(at.x - CENTER.x) <= 1 && Math.abs(at.y - CENTER.y) <= 1;
+        if (inSquare && robot.getTeam() == Team.A && robot.getType() == UnitType.BABY_RAT) {
+          rats++;
+        }
+      }
+      return rats >= 7;
     }
 
     private MapInfo[] mapInfos() {

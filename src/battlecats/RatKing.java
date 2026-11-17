@@ -26,6 +26,7 @@ public class RatKing {
     avoidEnemyThreats(rc);
     spawnRat(rc);
     KingSignal.publish(rc);
+    KingSignal.publishPromotionFunding(rc, foodBudget.canFeedAnotherKing());
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 

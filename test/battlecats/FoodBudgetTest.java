@@ -197,4 +197,47 @@ public class FoodBudgetTest {
     assertTrue(
         "Invalid inputs must not corrupt the usable default budget", budget.canSpawn(310, 10));
   }
+  @Test
+  public void anotherKingNeedsAFullWindowOfSurplusIncome() {
+    // Each case observes the opening bank, then {turns, change per turn} segments.
+    Object[][] cases = {
+      {"no observations", new int[][] {}, false},
+      {"99 turns at 4 per turn", new int[][] {{99, 4}}, false},
+      {"100 turns at 3 per turn reaches 300", new int[][] {{100, 3}}, true},
+      {"100 turns totalling 299", new int[][] {{99, 3}, {1, 2}}, false},
+      {"one king's upkeep only", new int[][] {{100, -2}}, false},
+      {"early surplus slides out", new int[][] {{100, 5}, {100, 0}}, false},
+      {"recent surplus after a poor start", new int[][] {{100, 0}, {100, 3}}, true},
+      {"spending dip within the window", new int[][] {{50, 10}, {50, -4}}, true},
+    };
+    for (Object[] c : cases) {
+      FoodBudget budget = new FoodBudget();
+      int bank = 2500;
+      budget.observeStart(bank);
+      budget.finishTurn(bank);
+      for (int[] segment : (int[][]) c[1]) {
+        for (int turn = 0; turn < segment[0]; turn++) {
+          bank += segment[1];
+          budget.observeStart(bank);
+          budget.finishTurn(bank);
+        }
+      }
+      assertEquals((String) c[0], c[2], budget.canFeedAnotherKing());
+    }
+  }
+
+  @Test
+  public void ownSpendingDuringTheTurnIsNotLostIncome() {
+    // The king spends 30 on rats each turn and 3 arrives between turns: income is 3 per turn.
+    FoodBudget budget = new FoodBudget();
+    int bank = 5000;
+    budget.observeStart(bank);
+    for (int turn = 0; turn < 100; turn++) {
+      bank -= 30;
+      budget.finishTurn(bank);
+      bank += 3;
+      budget.observeStart(bank);
+    }
+    assertTrue(budget.canFeedAnotherKing());
+  }
 }

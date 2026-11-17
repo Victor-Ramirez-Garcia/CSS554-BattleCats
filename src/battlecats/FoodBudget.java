@@ -30,7 +30,22 @@ public final class FoodBudget {
   // Accounting bound: no int-valued purchase can require more credit than this.
   private static final long MAX_GROWTH_CREDIT = (long) GROWTH_INVESTMENT_MULTIPLIER * Integer.MAX_VALUE;
 
+  // Experiment: judge whether the map can feed a second king over the last 100 king turns.
+  // Shorter windows react to a single large delivery; longer ones delay promotion past the
+  // early game where an extra king's spawns pay off most.
+  private static final int INCOME_WINDOW_TURNS = 100;
+  // Experiment: net bank growth per window, after this king's upkeep and rat construction
+  // but before its own spawning, that justifies a second king. A second king eats 2 cheese a
+  // round (200 per window); the extra 100 is margin. In the 7-map comparison against team
+  // main e82c077, rich maps delivered 1440-2660 by round 250 and starving maps (minimaze,
+  // safelycontained, pipes) delivered at most about 500, which is below one king's upkeep.
+  private static final int PROMOTION_SURPLUS_PER_WINDOW = 300;
+
   private boolean hasBankSnapshot;
+  private final int[] windowChanges = new int[INCOME_WINDOW_TURNS];
+  private int nextWindowSlot;
+  private boolean windowFull;
+  private long windowNetIncome;
   private int bankAtPreviousBoundary;
   private long growthCredit;
 
@@ -57,10 +72,19 @@ public final class FoodBudget {
     if (hasBankSnapshot) {
       long change = (long) globalCheese - bankAtPreviousBoundary;
       growthCredit = Math.max(0, Math.min(MAX_GROWTH_CREDIT, growthCredit + change));
+      recordWindowChange(change);
     }
     // Advance the baseline now too, so an interrupted turn cannot count the same income twice.
     bankAtPreviousBoundary = globalCheese;
     hasBankSnapshot = true;
+  }
+
+  /**
+   * Returns whether net income over the last full window could feed another king. The window
+   * starts with the first observed change, so the opening bank never counts as income.
+   */
+  public boolean canFeedAnotherKing() {
+    return windowFull && windowNetIncome >= PROMOTION_SURPLUS_PER_WINDOW;
   }
 
   /** The engine's current cost bands also permit replacement when opening workers have died. */
@@ -89,6 +113,18 @@ public final class FoodBudget {
 
 
   //PRIVATE METHODS
+  private void recordWindowChange(long change) {
+    // Bank values are non-negative ints, so a change between two of them fits in an int.
+    int bounded = (int) change;
+    windowNetIncome += bounded - windowChanges[nextWindowSlot];
+    windowChanges[nextWindowSlot] = bounded;
+    nextWindowSlot++;
+    if (nextWindowSlot == INCOME_WINDOW_TURNS) {
+      nextWindowSlot = 0;
+      windowFull = true;
+    }
+  }
+
   private static long investment(int ratCost) {
     return (long) GROWTH_INVESTMENT_MULTIPLIER * ratCost;
   }
