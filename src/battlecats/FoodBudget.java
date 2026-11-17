@@ -34,12 +34,15 @@ public final class FoodBudget {
   // Shorter windows react to a single large delivery; longer ones delay promotion past the
   // early game where an extra king's spawns pay off most.
   private static final int INCOME_WINDOW_TURNS = 100;
-  // Experiment: net bank growth per window, after this king's upkeep and rat construction
-  // but before its own spawning, that justifies a second king. A second king eats 2 cheese a
-  // round (200 per window); the extra 100 is margin. In the 7-map comparison against team
-  // main e82c077, rich maps delivered 1440-2660 by round 250 and starving maps (minimaze,
-  // safelycontained, pipes) delivered at most about 500, which is below one king's upkeep.
-  private static final int PROMOTION_SURPLUS_PER_WINDOW = 300;
+  // Engine rule: each king eats RAT_KING_CHEESE_CONSUMPTION cheese a round (2 in 1.2.6).
+  // Experiment: require net bank growth over the window (after this king's upkeep and rat
+  // construction, before its own spawning) to cover another king's upkeep plus 100 margin.
+  // Untuned. In the 7-map comparison against team main e82c077, gross deliveries by round 250
+  // were 1440-2660 on maps where a promoted king survived and at most about 500 on minimaze,
+  // safelycontained and pipes, where it starved. Promotion also absorbs six collectors, which
+  // this pre-promotion measure does not account for.
+  private static final int PROMOTION_SURPLUS_PER_WINDOW =
+      INCOME_WINDOW_TURNS * GameConstants.RAT_KING_CHEESE_CONSUMPTION + 100;
 
   private boolean hasBankSnapshot;
   private final int[] windowChanges = new int[INCOME_WINDOW_TURNS];

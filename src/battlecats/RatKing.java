@@ -16,6 +16,8 @@ public class RatKing {
   //PRIVATE VARS
   private final FoodBudget foodBudget = new FoodBudget();
   private int spawned;
+  // Set once this king publishes; a second king publishes only after the owner's signal lapses.
+  private boolean ownsSignal;
 
   //PUBLIC METHODS
   /** Runs the king's food accounting, combat, evasion, spawning, and signaling for one turn. */
@@ -25,8 +27,11 @@ public class RatKing {
     CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
     avoidEnemyThreats(rc);
     spawnRat(rc);
-    KingSignal.publish(rc);
-    KingSignal.publishPromotionFunding(rc, foodBudget.canFeedAnotherKing());
+    if (ownsSignal || !KingSignal.homeIsFresh(rc)) {
+      ownsSignal = true;
+      KingSignal.publish(rc);
+      KingSignal.publishPromotionFunding(rc, foodBudget.canFeedAnotherKing());
+    }
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 

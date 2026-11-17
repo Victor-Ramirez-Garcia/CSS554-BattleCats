@@ -83,6 +83,32 @@ public class RatKingTest {
   }
 
     @Test
+    public void onlyOneKingPublishesTheHomeUntilItsSignalLapses() throws Exception {
+    // SPEC: With a promoted second king, rats must all be told the same home.
+    // SCENARIO: Another king published at (3, 4) on round 100; this king then takes turns.
+    // PREVENTS: Two kings overwriting the home each round, so rats split by turn order.
+    World world = world();
+    world.shared[0] = 3;
+    world.shared[1] = 4;
+    world.shared[2] = 51;
+    RatKing king = new RatKing();
+
+    king.takeTurn(world.rc);
+    assertEquals("A fresh signal belongs to the other king", 3, world.shared[0]);
+
+    world.round = 104; // Stamp 51 is four rounds old: the owner stopped publishing.
+    king.takeTurn(world.rc);
+    assertEquals(world.location.x, world.shared[0]);
+    assertEquals(53, world.shared[2]);
+
+    world.shared[0] = 3;
+    world.round = 106;
+    world.shared[2] = 54;
+    king.takeTurn(world.rc);
+    assertEquals("The new owner keeps publishing", world.location.x, world.shared[0]);
+  }
+
+    @Test
     public void neutralCatTriggersTheExistingEvasionPolicy() throws Exception {
     World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
 
@@ -268,6 +294,7 @@ public class RatKingTest {
         int bank;
         int ratCost = 10;
         int births;
+        int round = 100;
         boolean buildable = true;
         final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         World() {
@@ -284,7 +311,7 @@ public class RatKingTest {
                 case "getLocation": return location;
                 case "getTeam": return Team.A;
                 case "getType": return UnitType.RAT_KING;
-                case "getRoundNum": return 100;
+                case "getRoundNum": return round;
                 case "getGlobalCheese":
                 case "getAllCheese":
                     return bank;
@@ -306,6 +333,7 @@ public class RatKingTest {
                 }
                 case "canMove": return true;
                 case "move": location = location.add((Direction) args[0]); moves++; return null;
+                case "readSharedArray": return shared[(Integer) args[0]];
                 case "writeSharedArray": shared[(Integer) args[0]] = (Integer) args[1]; return null;
                 case "setIndicatorString": return null;
                 default:

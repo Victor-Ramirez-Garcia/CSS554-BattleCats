@@ -75,7 +75,8 @@ public class BabyRatTest {
   public void promotesOnlyWhileAKingRecentlyReportedSurplusIncome() throws Exception {
     // SPEC: Team policy: promote only while a king's recent income could feed another king.
     // VALUE: The rat promotes on a fresh report and stays a worker without one or on a stale one.
-    // SCENARIO: The king's two-round report stamp is missing, 0, 2 or 4 rounds old, or from the future.
+    // SCENARIO: The king's two-round report stamp is missing, 0, 2 or 4 rounds old, or from
+    // a later round.
     // PREVENTS: An extra king starving the team on poor maps such as minimaze.
     Object[][] cases = {
       {"no report", null, 0},
