@@ -158,6 +158,10 @@ public class BabyRat {
     CatTactics.tryBite(rc, afterMovement);
   }
 
+  /////////////////////////////////
+  /////////////////////////////////
+  /////////////////////////////////
+
   //PRIVATE METHODS
 
   /**
@@ -249,8 +253,8 @@ public class BabyRat {
     return combined;
   }
 
-  /** Reuse a scan until movement, facing, an action or a new engine round can change its data. */
-  //returns all robots in current sensory range
+  // Reuse a scan until movement, facing, an action or a new engine round can change its data. 
+  /**returns all robots in current sensory range */
   private RobotInfo[] visibleRobots(RobotController rc) throws GameActionException {
     MapLocation location = rc.getLocation();
     Direction direction = rc.getDirection();
@@ -271,25 +275,35 @@ public class BabyRat {
   }
 
   private void findCheese(RobotController rc) throws GameActionException {
+
+    //if we have a cheese target and it's late in the game, ignore that cheese until later
     if (cheeseTarget != null && rc.getRoundNum() - targetRound >= TARGET_TIMEOUT_ROUNDS) {
       ignoredCheese = cheeseTarget;
       ignoreUntilRound = rc.getRoundNum() + IGNORE_TARGET_ROUNDS;
       cheeseTarget = null;
     }
+
+    //if we can see that our cheese target is empty, forget that cheese target
     if (cheeseTarget != null && rc.canSenseLocation(cheeseTarget)
         && rc.senseMapInfo(cheeseTarget).getCheeseAmount() == 0) {
       cheeseTarget = null;
     }
+
+    //find the closest cheese in vision
     MapLocation closest = cheeseTarget;
     int bestDistance = closest == null ? Integer.MAX_VALUE : rc.getLocation().distanceSquaredTo(closest);
+    //search every location in vision
     for (MapInfo info : rc.senseNearbyMapInfos()) {
+      //if it has no cheese, ignore it
       if (info.getCheeseAmount() <= 0) {
         continue;
       }
+      //if it's the ignored cheese but it's not time yet, ignore it
       MapLocation location = info.getMapLocation();
       if (location.equals(ignoredCheese) && rc.getRoundNum() < ignoreUntilRound) {
         continue;
       }
+      //the code only reaches here if the spot has cheese, if the loc is closer than our cheese target, switch targets
       int distance = rc.getLocation().distanceSquaredTo(location);
       if (distance < bestDistance) {
         closest = location;
@@ -302,6 +316,8 @@ public class BabyRat {
     }
   }
 
+  //function for picking up a cheeseTarget that we're right next to 
+  //CHANGE: consider expanding it for also pick up enemy baby rats so we don't need 2 functions
   private boolean pickUp(RobotController rc) throws GameActionException {
     if (cheeseTarget != null && rc.canPickUpCheese(cheeseTarget)) {
       rc.pickUpCheese(cheeseTarget);
@@ -311,12 +327,17 @@ public class BabyRat {
     return false;
   }
 
+  //function for 
   private void returnCheese(RobotController rc) throws GameActionException {
     rc.setIndicatorString("RETURN raw=" + rc.getRawCheese() + " delivered=" + deliveries);
+    
+    //I think this code will probably never execute
     if (kingLocation == null) {
       navigation.explore(rc);
       return;
     }
+    //end of pointless code
+
     face(rc, kingLocation);
     rememberKing(rc);
     if (deliver(rc)) {

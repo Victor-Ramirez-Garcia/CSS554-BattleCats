@@ -4,6 +4,9 @@ import battlecode.common.*;
 import java.util.Random;
 
 /** Bounded wall-following navigation; uses legal moves rather than a revealed map. */
+//Do all environmental logic and 'what's in the rc's vision' here in Navigation
+
+
 public class Navigation {
 
     //PUBLIC VARS

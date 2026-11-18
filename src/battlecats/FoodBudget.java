@@ -14,16 +14,16 @@ public final class FoodBudget {
   private static final int DELIVERY_THRESHOLD = 200;    //what's this and why are we doing it
   private static final int SPENDING_RESERVE = 300;
   // Experiment: bootstrap or replace sixteen living babies; their initial purchases total 400.
-  //private static final int BOOTSTRAP_BABIES = 16;
+  private static final int BOOTSTRAP_BABIES = 16;
 
 
   // Engine rule: base 10 + 10 * floor(living babies / 4). At sixteen babies the next cost is 50.
-/*
+
   private static final int GROWTH_COST_THRESHOLD =
       GameConstants.BUILD_ROBOT_BASE_COST
           + GameConstants.BUILD_ROBOT_COST_INCREASE
               * (BOOTSTRAP_BABIES / GameConstants.NUM_ROBOTS_FOR_COST_INCREASE);
-*/
+
 
   // Experiment: each birth invests its purchase price again in future food.
   private static final int GROWTH_INVESTMENT_MULTIPLIER = 2;
@@ -93,8 +93,8 @@ public final class FoodBudget {
   /** The engine's current cost bands also permit replacement when opening workers have died. */
   public boolean canSpawn(int globalCheese, int ratCost) {
     return ratCost > 0
-        && canSpend(globalCheese, ratCost);
-        //&& (ratCost < GROWTH_COST_THRESHOLD || growthCredit >= investment(ratCost));
+        && canSpend(globalCheese, ratCost)
+        && (ratCost < GROWTH_COST_THRESHOLD || growthCredit >= investment(ratCost));
   }
 
   /** Call only after a successful birth, using its cost before the population increased. */
