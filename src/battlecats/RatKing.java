@@ -18,24 +18,94 @@ public class RatKing {
   private int spawned;
   // Set once this king publishes; a second king publishes only after the owner's signal lapses.
   private boolean ownsSignal;
+  // Late-game rally centre chosen by this king, reused while it stays passable.
+  private MapLocation rally;
 
   //PUBLIC METHODS
   /** Runs the king's food accounting, combat, evasion, spawning, and signaling for one turn. */
   public void takeTurn(RobotController rc) throws GameActionException {
     foodBudget.observeStart(rc.getGlobalCheese());
     rc.setIndicatorString("KING spawned=" + spawned);
-    CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    if (!biteEnemyRat(rc)) {
+      CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    }
     avoidEnemyThreats(rc);
     spawnRat(rc);
     if (ownsSignal || !KingSignal.homeIsFresh(rc)) {
       ownsSignal = true;
       KingSignal.publish(rc);
       KingSignal.publishPromotionFunding(rc, foodBudget.canFeedAnotherKing());
+      if (rc.getRoundNum() >= BabyRat.LATE_PROMOTION_ROUND) {
+        KingSignal.publishRally(rc, chooseRally(rc));
+      }
+    } else {
+      KingSignal.publishSecondKing(rc);
     }
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 
   //PRIVATE METHODS
+  /**
+   * After cooperation ends, bites the weakest enemy rat in reach. Engine rule: a king bites up to
+   * distance squared 8 and sees all around; 3mice fights at the mines next to our king, where our
+   * 600-health king can thin its workers.
+   */
+  private boolean biteEnemyRat(RobotController rc) throws GameActionException {
+    if (rc.isCooperation() || !rc.isActionReady()) {
+      return false;
+    }
+    RobotInfo target = null;
+    for (RobotInfo robot : rc.senseNearbyRobots(
+        GameConstants.RAT_KING_ATTACK_DISTANCE_SQUARED, rc.getTeam().opponent())) {
+      if (robot.getType() == UnitType.BABY_RAT && rc.canAttack(robot.getLocation())
+          && (target == null || robot.getHealth() < target.getHealth())) {
+        target = robot;
+      }
+    }
+    if (target == null) {
+      return false;
+    }
+    rc.attack(target.getLocation());
+    return true;
+  }
+
+  /**
+   * Picks the centre of a fully passable 3x3 three tiles from this king, so its square never
+   * overlaps the king's own 3x3 (an engine refusal). Keeps a valid choice to avoid re-sensing.
+   */
+  private MapLocation chooseRally(RobotController rc) throws GameActionException {
+    if (rally != null && passableSquare(rc, rally)) {
+      return rally;
+    }
+    MapLocation here = rc.getLocation();
+    rally = null;
+    for (Direction direction : Direction.allDirections()) {
+      if (direction == Direction.CENTER) {
+        continue;
+      }
+      MapLocation centre = here.translate(3 * direction.dx, 3 * direction.dy);
+      if (passableSquare(rc, centre)) {
+        rally = centre;
+        break;
+      }
+    }
+    return rally;
+  }
+
+  private static boolean passableSquare(RobotController rc, MapLocation centre)
+      throws GameActionException {
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        MapLocation tile = centre.translate(dx, dy);
+        if (!rc.onTheMap(tile) || !rc.canSenseLocation(tile)
+            || !rc.senseMapInfo(tile).isPassable()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   /** Spawns at most one Baby Rat when the food budget permits an adjacent empty location. */
   private void spawnRat(RobotController rc) throws GameActionException {
     int globalCheese = rc.getGlobalCheese();
