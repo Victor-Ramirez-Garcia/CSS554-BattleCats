@@ -7,7 +7,6 @@ import battlecode.common.MapInfo;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
 import battlecode.common.RobotInfo;
-import battlecode.common.Team;
 import battlecode.common.TrapType;
 import battlecode.common.UnitType;
 
@@ -24,15 +23,9 @@ public class Construction {
   private static final int SCREEN_CAT_DISTANCE_SQUARED = 9;
   // Experiment: protect more than the king's footprint and immediate spawn ring.
   private static final int HOME_CLEARANCE_SQUARED = 18;
-  // Engine rule: an enemy triggers a rat trap only within distance squared 2 of it.
-  // Experiments: place rat traps within about four tiles of the king, and only when an enemy
-  // rat is within two tiles of the trap, so the trap is near both the king and the threat.
-  private static final int RAT_TRAP_HOME_DISTANCE_SQUARED = 20;
-  private static final int RAT_TRAP_ENEMY_DISTANCE_SQUARED = 8;
 
   // One successful placement of each kind per worker bounds spending and scattered obstacles.
   private boolean placedCatTrap;
-  private boolean placedRatTrap;
   private boolean placedScreen;
 
 
@@ -43,18 +36,15 @@ public class Construction {
    * Returns true only when a trap, dirt screen or useful dirt removal consumed the action.
    */
   public boolean tryBuild(
-      RobotController rc, MapLocation home, MapLocation objective, RobotInfo[] visibleRobots)
+      RobotController rc, MapLocation home, MapLocation objective, RobotInfo[] visibleCats)
       throws GameActionException {
     // The engine spends cargo before the bank. Keep normal return loads at their threshold;
     // only clearDeliveryRoute may deliberately use cargo to rescue an emergency food trip.
     if (!rc.isActionReady() || rc.getRawCheese() != 0) {
       return false;
     }
-    MapLocation catPart = nearestCatPart(rc.getLocation(), visibleRobots);
+    MapLocation catPart = nearestCatPart(rc.getLocation(), visibleCats);
     if (catPart != null && tryCatTrap(rc, catPart)) {
-      return true;
-    }
-    if (tryRatTrap(rc, home, visibleRobots)) {
       return true;
     }
     //I think that we shouldn't be doing this here
@@ -65,9 +55,9 @@ public class Construction {
   }
 
     /** Removes only the next dirt obstruction when doing so can release carried food to the bank. */
-  public boolean clearRoute(RobotController rc, MapLocation objective)
+  public boolean clearDeliveryRoute(RobotController rc, MapLocation home)
       throws GameActionException {
-    return tryClearRoute(rc, objective, true);
+    return tryClearRoute(rc, home, true);
   }
 
 
@@ -90,40 +80,6 @@ public class Construction {
         // The engine checks occupancy, mines, the team trap limit and backstab restrictions.
         rc.placeCatTrap(target);
         placedCatTrap = true;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Places one rat trap on a tile next to this worker, toward a nearby enemy rat, close to the
-   * king, and only after cooperation. It lies between the enemy and the king only when this
-   * worker does. Engine rule (GameWorld.triggerTrap, 1.2.6): an enemy rat triggering our rat
-   * trap is our backstab and ends cooperation, so an earlier trap could start PvP for us.
-   */
-  private boolean tryRatTrap(RobotController rc, MapLocation home, RobotInfo[] visibleRobots)
-      throws GameActionException {
-    if (placedRatTrap || home == null || rc.isCooperation()
-        || !FoodBudget.canSpend(rc.getGlobalCheese(), TrapType.RAT_TRAP.buildCost)) {
-      return false;
-    }
-    MapLocation enemy = nearestEnemyRat(rc, visibleRobots);
-    if (enemy == null) {
-      return false;
-    }
-    MapLocation here = rc.getLocation();
-    Direction towardEnemy = here.directionTo(enemy);
-    Direction[] candidates = {towardEnemy, towardEnemy.rotateLeft(), towardEnemy.rotateRight()};
-    for (Direction direction : candidates) {
-      MapLocation target = here.add(direction);
-      if (direction != Direction.CENTER
-          && target.distanceSquaredTo(enemy) <= RAT_TRAP_ENEMY_DISTANCE_SQUARED
-          && target.distanceSquaredTo(home) <= RAT_TRAP_HOME_DISTANCE_SQUARED
-          && rc.canPlaceRatTrap(target)) {
-        // The engine checks occupancy, walls, dirt, mines, an existing trap and the team cap.
-        rc.placeRatTrap(target);
-        placedRatTrap = true;
         return true;
       }
     }
@@ -202,28 +158,6 @@ public class Construction {
   private boolean openTerrain(RobotController rc, MapLocation location)
       throws GameActionException {
     return rc.canSenseLocation(location) && rc.senseMapInfo(location).isPassable();
-  }
-
-  private MapLocation nearestEnemyRat(RobotController rc, RobotInfo[] visibleRobots) {
-    Team enemy = rc.getTeam().opponent();
-    MapLocation here = rc.getLocation();
-    MapLocation closest = null;
-    int nearestDistance = Integer.MAX_VALUE;
-    for (RobotInfo robot : visibleRobots) {
-      if (robot.getTeam() != enemy
-          || (robot.getType() != UnitType.BABY_RAT && robot.getType() != UnitType.RAT_KING)) {
-        continue;
-      }
-      // A king covers several tiles; aim at the part nearest to this worker.
-      for (MapLocation part : robot.getType().getAllTypeLocations(robot.getLocation())) {
-        int distance = here.distanceSquaredTo(part);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          closest = part;
-        }
-      }
-    }
-    return closest;
   }
 
   private MapLocation nearestCatPart(MapLocation here, RobotInfo[] visibleCats) {

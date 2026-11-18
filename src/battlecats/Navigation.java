@@ -19,6 +19,7 @@ public class Navigation {
     private int waypointRound;
     private boolean followingWall;
     private Direction wallDirection;
+    private final Construction construction = new Construction();
     private int hitDistance;
     private int wallSteps;
 
@@ -62,6 +63,8 @@ public class Navigation {
             followingWall = false;
             wallSteps = 0;
         }
+
+        //if you can move towards the target, do so
         Direction direct = here.directionTo(target);
         int distance = here.distanceSquaredTo(target);
         if ((!followingWall || distance < hitDistance) && rc.canMove(direct)) {
@@ -69,12 +72,24 @@ public class Navigation {
             step(rc, direct);
             return;
         }
+
+        //you only get here if you can't move towards the target
+        //try to clearRoute instead of following a wall
+        if (random.nextFloat() < .3){
+            MapLocation next = rc.getLocation().add(rc.getLocation().directionTo(target));
+            //construction.clearRoute(rc, next);
+            rc.removeDirt(next);
+        }
+
+        //try following the wall
         if (!followingWall) {
             followingWall = true;
             hitDistance = distance;
             wallDirection = direct;
             wallSteps = 0;
         }
+
+        //
         Direction candidate = wallDirection;
         for (int i = 0; i < 8; i++) {
             if (rc.canMove(candidate)) {
