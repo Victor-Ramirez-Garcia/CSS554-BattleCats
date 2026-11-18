@@ -26,7 +26,9 @@ public class RatKing {
   public void takeTurn(RobotController rc) throws GameActionException {
     foodBudget.observeStart(rc.getGlobalCheese());
     rc.setIndicatorString("KING spawned=" + spawned);
-    CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    if (!biteEnemyRat(rc)) {
+      CatTactics.tryBite(rc, rc.senseNearbyRobots(-1, Team.NEUTRAL));
+    }
     avoidEnemyThreats(rc);
     spawnRat(rc);
     if (ownsSignal || !KingSignal.homeIsFresh(rc)) {
@@ -43,6 +45,30 @@ public class RatKing {
   }
 
   //PRIVATE METHODS
+  /**
+   * After cooperation ends, bites the weakest enemy rat in reach. Engine rule: a king bites up to
+   * distance squared 8 and sees all around; 3mice fights at the mines next to our king, where our
+   * 600-health king can thin its workers.
+   */
+  private boolean biteEnemyRat(RobotController rc) throws GameActionException {
+    if (rc.isCooperation() || !rc.isActionReady()) {
+      return false;
+    }
+    RobotInfo target = null;
+    for (RobotInfo robot : rc.senseNearbyRobots(
+        GameConstants.RAT_KING_ATTACK_DISTANCE_SQUARED, rc.getTeam().opponent())) {
+      if (robot.getType() == UnitType.BABY_RAT && rc.canAttack(robot.getLocation())
+          && (target == null || robot.getHealth() < target.getHealth())) {
+        target = robot;
+      }
+    }
+    if (target == null) {
+      return false;
+    }
+    rc.attack(target.getLocation());
+    return true;
+  }
+
   /**
    * Picks the centre of a fully passable 3x3 three tiles from this king, so its square never
    * overlaps the king's own 3x3 (an engine refusal). Keeps a valid choice to avoid re-sensing.

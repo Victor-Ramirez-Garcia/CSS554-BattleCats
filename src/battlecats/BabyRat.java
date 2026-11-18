@@ -20,6 +20,8 @@ public class BabyRat {
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
   private static final int RETURN_CHEESE_THRESHOLD = 20;
+  // Experiment: three more bites kill a Baby Rat at this health.
+  private static final int RETREAT_HEALTH = 30;
   // Engine rule: at round 2000 the winner is scored on shares of cat damage, living Rat Kings
   // and delivered cheese, and after round 1200 a team may only add a king while it has fewer
   // than two. Experiment: from round 1850 workers gather at the king so a second king forms
@@ -437,7 +439,18 @@ public class BabyRat {
         nearest = robot.getLocation();
       }
     }
-    if (nearest == null || allies < enemies) {
+    if (nearest == null) {
+      return false;
+    }
+    // Experiment: outnumbered or badly hurt workers fall back to the king, which now bites
+    // enemy rats, instead of dying alone at a mine.
+    if ((allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null) {
+      tryBiteEnemyRat(rc, robots);
+      navigation.moveToward(rc, kingLocation);
+      rc.setIndicatorString("FALL BACK allies=" + allies + " enemies=" + enemies);
+      return true;
+    }
+    if (allies < enemies) {
       return false;
     }
     boolean bit = tryBiteEnemyRat(rc, robots);

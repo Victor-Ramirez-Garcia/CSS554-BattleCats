@@ -164,19 +164,26 @@ public class BabyRatTest {
   }
 
   @Test
-  public void closesOnEnemyRatsOnlyWhenNotOutnumberedInSight() throws Exception {
-    // SPEC: After a betrayal, empty workers fight when visible allies match visible enemies.
-    // VALUE: A lone worker meeting one enemy rat fights; meeting three it keeps working.
+  public void fightsWhenNotOutnumberedAndFallsBackToTheKingOtherwise() throws Exception {
+    // SPEC: After a betrayal, empty workers fight when visible allies match visible enemies, and
+    // fall back toward the king when outnumbered or at 30 health or less.
+    // VALUE: The chosen behaviour shows in the indicator; without a known king an outnumbered
+    // worker keeps working, and nothing changes during cooperation.
     Object[][] cases = {
-      {"one enemy, alone", 1, 0, true},
-      {"three enemies, alone", 3, 0, false},
-      {"three enemies, two allies", 3, 2, true},
-      {"cooperation", 1, 0, false},
+      {"one enemy, alone", 1, 0, 100, true, "FIGHT"},
+      {"three enemies, alone", 3, 0, 100, true, "FALL BACK"},
+      {"three enemies, two allies", 3, 2, 100, true, "FIGHT"},
+      {"one enemy, badly hurt", 1, 0, 30, true, "FALL BACK"},
+      {"three enemies, no king known", 3, 0, 100, false, null},
+      {"cooperation", 1, 0, 100, true, null},
     };
     for (Object[] c : cases) {
       World world = new World();
       world.cooperation = c[0].equals("cooperation");
-      world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      world.health = (int) c[3];
+      if ((boolean) c[4]) {
+        world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      }
       for (int i = 0; i < (int) c[1]; i++) {
         world.robots.add(robot(UnitType.BABY_RAT, Team.B, new MapLocation(9 + i, 14)));
       }
@@ -186,8 +193,11 @@ public class BabyRatTest {
 
       new BabyRat(1).takeTurn(world.rc);
 
-      boolean fought = world.indicators.stream().anyMatch(text -> text.startsWith("FIGHT"));
-      assertEquals((String) c[0], (boolean) c[3], fought);
+      String chosen = world.indicators.stream()
+          .filter(text -> text.startsWith("FIGHT") || text.startsWith("FALL BACK"))
+          .map(text -> text.startsWith("FIGHT") ? "FIGHT" : "FALL BACK")
+          .findFirst().orElse(null);
+      assertEquals((String) c[0], c[5], chosen);
     }
   }
 

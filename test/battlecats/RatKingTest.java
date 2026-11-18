@@ -158,6 +158,34 @@ public class RatKingTest {
   }
 
     @Test
+    public void biteTheWeakestEnemyRatInReachOnlyAfterCooperation() throws Exception {
+    // SPEC: After a betrayal the king bites enemy Baby Rats within distance squared 8.
+    // VALUE: It picks the weakest one in reach, ignores rats out of reach, and bites nobody
+    // during cooperation (that would be our backstab).
+    MapLocation near = KING.translate(2, 0);
+    MapLocation weakNear = KING.translate(0, 2);
+    MapLocation far = KING.translate(4, 0);
+    Object[][] cases = {
+      {"after betrayal", false, List.of(weakNear)},
+      {"cooperation", true, List.of()},
+    };
+    for (Object[] c : cases) {
+      RobotInfo strong = new RobotInfo(201, Team.B, UnitType.BABY_RAT, 100, near,
+          Direction.NORTH, 0, 0, null);
+      RobotInfo weak = new RobotInfo(202, Team.B, UnitType.BABY_RAT, 40, weakNear,
+          Direction.NORTH, 0, 0, null);
+      RobotInfo weakest = new RobotInfo(203, Team.B, UnitType.BABY_RAT, 10, far,
+          Direction.NORTH, 0, 0, null);
+      World world = world(strong, weak, weakest);
+      world.cooperation = (boolean) c[1];
+
+      new RatKing().takeTurn(world.rc);
+
+      assertEquals((String) c[0], c[2], world.bites);
+    }
+  }
+
+    @Test
     public void neutralCatTriggersTheExistingEvasionPolicy() throws Exception {
     World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
 
@@ -345,6 +373,8 @@ public class RatKingTest {
         int births;
         int round = 100;
         boolean buildable = true;
+        boolean cooperation = true;
+        final List<MapLocation> bites = new ArrayList<>();
         final java.util.Set<MapLocation> walls = new java.util.HashSet<>();
         final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         World() {
@@ -386,6 +416,14 @@ public class RatKingTest {
                 case "readSharedArray": return shared[(Integer) args[0]];
                 case "writeSharedArray": shared[(Integer) args[0]] = (Integer) args[1]; return null;
                 case "setIndicatorString": return null;
+                case "isCooperation": return cooperation;
+                case "isActionReady": return true;
+                case "canAttack": {
+                    MapLocation at = (MapLocation) args[0];
+                    return location.distanceSquaredTo(at)
+                            <= GameConstants.RAT_KING_ATTACK_DISTANCE_SQUARED;
+                }
+                case "attack": bites.add((MapLocation) args[0]); return null;
                 case "onTheMap": {
                     MapLocation at = (MapLocation) args[0];
                     return at.x >= 0 && at.y >= 0 && at.x < 30 && at.y < 30;
