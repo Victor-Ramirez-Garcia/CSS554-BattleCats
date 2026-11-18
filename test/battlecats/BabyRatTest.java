@@ -147,6 +147,38 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void workersRallyOnlyWhenALateKingCanForm() throws Exception {
+    // SPEC: From round 1850 workers gather at the king's published square to form a second king.
+    // VALUE: They gather only when the bank pays for it, no second king is alive and a square is
+    // published; otherwise they keep collecting, as the engine would refuse the promotion.
+    int funded = 50 + 4 * 100;
+    Object[][] cases = {
+      {"all conditions met", 1900, funded, true, false, true},
+      {"before the window", 1849, funded, true, false, false},
+      {"bank one short", 1900, funded - 1, true, false, false},
+      {"no square published", 1900, funded, false, false, false},
+      {"second king alive", 1900, funded, true, true, false},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+      if ((boolean) c[3]) {
+        world.shared[5] = CENTER.x + 4;
+        world.shared[6] = CENTER.y + 1;
+      }
+      if ((boolean) c[4]) {
+        world.shared[7] = world.round / 2 + 1;
+      }
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      boolean rallied = world.indicators.stream().anyMatch(text -> text.startsWith("RALLY"));
+      assertEquals((String) c[0], (boolean) c[5], rallied);
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -173,6 +205,7 @@ public class BabyRatTest {
     int cheese = 400;
     int round = 100;
     int upgrades;
+    final List<String> indicators = new ArrayList<>();
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -211,6 +244,7 @@ public class BabyRatTest {
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
         case "getDirection": return Direction.NORTH;
+        case "setIndicatorString": indicators.add((String) args[0]); return null;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }

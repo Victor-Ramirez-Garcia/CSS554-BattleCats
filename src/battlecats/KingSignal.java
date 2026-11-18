@@ -8,7 +8,8 @@ import battlecode.common.UnitType;
 
 /**
  * Fresh home coordinates and promotion funding from one king. With two kings, only the king that
- * owns the signal publishes, so every rat is told the same home.
+ * owns the signal publishes them, so every rat is told the same home; the other king only stamps
+ * SECOND_KING_SLOT.
  */
 public final class KingSignal {
 
@@ -33,6 +34,8 @@ public final class KingSignal {
   // Late-game rally centre for a second king, stored as x + 1 and y + 1 so zero means none.
   private static final int RALLY_X_SLOT = 5;
   private static final int RALLY_Y_SLOT = 6;
+  // Two-round stamp from any king that does not own the home signal, i.e. a second king.
+  private static final int SECOND_KING_SLOT = 7;
 
 
   //PUBLIC METHODS
@@ -104,7 +107,8 @@ public final class KingSignal {
   }
 
   /** Publishes the centre of a passable 3x3 where workers gather to form a late king. */
-  public static void publishRally(RobotController rc, MapLocation centre) throws GameActionException {
+  public static void publishRally(RobotController rc, MapLocation centre)
+      throws GameActionException {
     rc.writeSharedArray(RALLY_X_SLOT, centre == null ? 0 : centre.x + 1);
     rc.writeSharedArray(RALLY_Y_SLOT, centre == null ? 0 : centre.y + 1);
   }
@@ -114,6 +118,16 @@ public final class KingSignal {
     int x = rc.readSharedArray(RALLY_X_SLOT);
     int y = rc.readSharedArray(RALLY_Y_SLOT);
     return x == 0 || y == 0 ? null : new MapLocation(x - 1, y - 1);
+  }
+
+  /** Called each turn by a king that does not own the home signal. */
+  public static void publishSecondKing(RobotController rc) throws GameActionException {
+    rc.writeSharedArray(SECOND_KING_SLOT, rc.getRoundNum() / 2 + 1);
+  }
+
+  /** Returns whether a second king reported itself within the freshness window. */
+  public static boolean secondKingAlive(RobotController rc) throws GameActionException {
+    return isFresh(rc.getRoundNum(), rc.readSharedArray(SECOND_KING_SLOT));
   }
 
   /** Records a promotion in the late window; workers then stop gathering at the king. */

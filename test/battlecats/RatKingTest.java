@@ -137,6 +137,27 @@ public class RatKingTest {
   }
 
     @Test
+    public void aKingThatDoesNotOwnTheSignalAnnouncesItselfAsTheSecondKing() throws Exception {
+    // SPEC: Workers stop rallying for a late king while a second king is alive.
+    // VALUE: A king that sees another king's fresh home signal stamps slot 7 and leaves the home
+    // and rally slots alone; the owner does not stamp it.
+    World second = world();
+    second.round = 1900;
+    second.shared[0] = 3;
+    second.shared[1] = 4;
+    second.shared[2] = 1900 / 2 + 1;
+    new RatKing().takeTurn(second.rc);
+    assertEquals(1900 / 2 + 1, second.shared[7]);
+    assertEquals(3, second.shared[0]);
+    assertEquals(0, second.shared[5]);
+
+    World owner = world();
+    owner.round = 1900;
+    new RatKing().takeTurn(owner.rc);
+    assertEquals(0, owner.shared[7]);
+  }
+
+    @Test
     public void neutralCatTriggersTheExistingEvasionPolicy() throws Exception {
     World world = world(robot(UnitType.CAT, CAT_WEST, Team.NEUTRAL));
 

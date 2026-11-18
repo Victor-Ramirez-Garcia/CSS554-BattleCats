@@ -36,6 +36,8 @@ public class RatKing {
       if (rc.getRoundNum() >= BabyRat.LATE_PROMOTION_ROUND) {
         KingSignal.publishRally(rc, chooseRally(rc));
       }
+    } else {
+      KingSignal.publishSecondKing(rc);
     }
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
