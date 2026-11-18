@@ -65,9 +65,9 @@ public class Construction {
   }
 
     /** Removes only the next dirt obstruction when doing so can release carried food to the bank. */
-  public boolean clearDeliveryRoute(RobotController rc, MapLocation home)
+  public boolean clearRoute(RobotController rc, MapLocation objective)
       throws GameActionException {
-    return tryClearRoute(rc, home, true);
+    return tryClearRoute(rc, objective, true);
   }
 
 

@@ -213,7 +213,7 @@ public class BabyRat {
         return true;
       }
       if (kingLocation != null) {
-        construction.clearDeliveryRoute(rc, kingLocation);
+        construction.clearRoute(rc, kingLocation);
       }
       returnCheese(rc);
     }
@@ -330,7 +330,7 @@ public class BabyRat {
   //function for 
   private void returnCheese(RobotController rc) throws GameActionException {
     rc.setIndicatorString("RETURN raw=" + rc.getRawCheese() + " delivered=" + deliveries);
-    
+
     //I think this code will probably never execute
     if (kingLocation == null) {
       navigation.explore(rc);
