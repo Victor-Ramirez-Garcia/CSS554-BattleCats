@@ -20,6 +20,12 @@ public class BabyRat {
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
   private static final int RETURN_CHEESE_THRESHOLD = 20;
+  // Engine rule: at round 2000 the winner is scored on shares of cat damage, living Rat Kings
+  // and delivered cheese, and after round 1200 a team may only add a king while it has fewer
+  // than two. Experiment: from round 1850 workers gather at the king so a second king forms
+  // before the end; 3mice promotes at 1950 and won every long game 2 kings to 1.
+  static final int LATE_PROMOTION_ROUND = 1850;
+  private static final int LAST_ROUND = 2000;
   private final Navigation navigation;
   private final Construction construction = new Construction();
   private final CatTactics catTactics = new CatTactics();
@@ -85,6 +91,15 @@ public class BabyRat {
     // Immediate pickups and food trips still take priority; only empty workers may approach.
     //don't interrupt if we're currently attacking
     if (!scanningForHome && catTactics.engage(rc, observations)) {
+      return;
+    }
+    // Late in the game, gather at the king so seven workers can share a 3x3 and promote.
+    if (!returning && isLatePromotionWindow(rc) && !KingSignal.latePromotionRecorded(rc)
+        && kingLocation != null) {
+      CatTactics.tryBite(rc, observations);
+      MapLocation rally = KingSignal.readRally(rc);
+      navigation.moveToward(rc, rally != null ? rally : kingLocation);
+      rc.setIndicatorString("RALLY for late king at " + rally);
       return;
     }
     //if we have an objective (kingLovation, cheese, others to be added?), face the objective
@@ -175,6 +190,9 @@ public class BabyRat {
    * the income check starved every king on minimaze and safelycontained, even when capped at one.
    */
   private boolean tryBecomeRatKing(RobotController rc) throws GameActionException {
+    if (isLatePromotionWindow(rc)) {
+      return tryLatePromotion(rc);
+    }
     if (rc.getRoundNum() > GameConstants.RAT_KING_CUTOFF_ROUND
         || !FoodBudget.canSpend(rc.getGlobalCheese(), GameConstants.RAT_KING_UPGRADE_CHEESE_COST)
         || KingSignal.promotionRecorded(rc)
@@ -184,6 +202,26 @@ public class BabyRat {
     }
     rc.becomeRatKing();
     KingSignal.recordPromotion(rc);
+    return true;
+  }
+
+  private static boolean isLatePromotionWindow(RobotController rc) {
+    return rc.getRoundNum() >= LATE_PROMOTION_ROUND;
+  }
+
+  /**
+   * Promotes regardless of the income signal and the one-per-game policy; the engine refuses
+   * once we already have two kings. The bank must still feed two kings until the last round.
+   */
+  private boolean tryLatePromotion(RobotController rc) throws GameActionException {
+    int upkeepToEnd = 2 * GameConstants.RAT_KING_CHEESE_CONSUMPTION
+        * (LAST_ROUND - rc.getRoundNum());
+    if (rc.getGlobalCheese() < GameConstants.RAT_KING_UPGRADE_CHEESE_COST + upkeepToEnd
+        || !rc.canBecomeRatKing()) {
+      return false;
+    }
+    rc.becomeRatKing();
+    KingSignal.recordLatePromotion(rc);
     return true;
   }
 

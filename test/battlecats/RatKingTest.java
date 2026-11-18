@@ -2,10 +2,12 @@ package battlecats;
 
 import battlecode.common.Direction;
 import battlecode.common.GameConstants;
+import battlecode.common.MapInfo;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
 import battlecode.common.RobotInfo;
 import battlecode.common.Team;
+import battlecode.common.TrapType;
 import battlecode.common.UnitType;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -106,6 +108,32 @@ public class RatKingTest {
     world.shared[2] = 54;
     king.takeTurn(world.rc);
     assertEquals("The new owner keeps publishing", world.location.x, world.shared[0]);
+  }
+
+    @Test
+    public void publishesAPassableRallySquareThreeTilesAwayInTheLateGame() throws Exception {
+    // SPEC: From round 1850 the king publishes where workers gather to form a second king.
+    // VALUE: The centre is three tiles from the king, so its 3x3 never overlaps the king's, and
+    // every tile in that 3x3 is passable. Before the window nothing is published.
+    World early = world();
+    early.round = 1849;
+    new RatKing().takeTurn(early.rc);
+    assertEquals(0, early.shared[5]);
+    assertEquals(0, early.shared[6]);
+
+    World late = world();
+    late.round = 1900;
+    MapLocation north = KING.translate(0, 3);
+    late.walls.add(north.translate(1, 1)); // spoils the first candidate square
+    new RatKing().takeTurn(late.rc);
+    MapLocation rally = new MapLocation(late.shared[5] - 1, late.shared[6] - 1);
+    MapLocation king = late.location;
+    assertEquals(3, Math.max(Math.abs(rally.x - king.x), Math.abs(rally.y - king.y)));
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        assertFalse(late.walls.contains(rally.translate(dx, dy)));
+      }
+    }
   }
 
     @Test
@@ -296,6 +324,7 @@ public class RatKingTest {
         int births;
         int round = 100;
         boolean buildable = true;
+        final java.util.Set<MapLocation> walls = new java.util.HashSet<>();
         final int[] shared = new int[GameConstants.SHARED_ARRAY_SIZE];
         World() {
             rc = (RobotController)
@@ -336,6 +365,16 @@ public class RatKingTest {
                 case "readSharedArray": return shared[(Integer) args[0]];
                 case "writeSharedArray": shared[(Integer) args[0]] = (Integer) args[1]; return null;
                 case "setIndicatorString": return null;
+                case "onTheMap": {
+                    MapLocation at = (MapLocation) args[0];
+                    return at.x >= 0 && at.y >= 0 && at.x < 30 && at.y < 30;
+                }
+                case "canSenseLocation": return true;
+                case "senseMapInfo": {
+                    MapLocation at = (MapLocation) args[0];
+                    boolean open = !walls.contains(at);
+                    return new MapInfo(at, open, null, !open, false, 0, TrapType.NONE, false);
+                }
                 default:
                     return method.getReturnType() == boolean.class
                             ? false

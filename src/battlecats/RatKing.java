@@ -18,6 +18,8 @@ public class RatKing {
   private int spawned;
   // Set once this king publishes; a second king publishes only after the owner's signal lapses.
   private boolean ownsSignal;
+  // Late-game rally centre chosen by this king, reused while it stays passable.
+  private MapLocation rally;
 
   //PUBLIC METHODS
   /** Runs the king's food accounting, combat, evasion, spawning, and signaling for one turn. */
@@ -31,11 +33,51 @@ public class RatKing {
       ownsSignal = true;
       KingSignal.publish(rc);
       KingSignal.publishPromotionFunding(rc, foodBudget.canFeedAnotherKing());
+      if (rc.getRoundNum() >= BabyRat.LATE_PROMOTION_ROUND) {
+        KingSignal.publishRally(rc, chooseRally(rc));
+      }
     }
     foodBudget.finishTurn(rc.getGlobalCheese());
   }
 
   //PRIVATE METHODS
+  /**
+   * Picks the centre of a fully passable 3x3 three tiles from this king, so its square never
+   * overlaps the king's own 3x3 (an engine refusal). Keeps a valid choice to avoid re-sensing.
+   */
+  private MapLocation chooseRally(RobotController rc) throws GameActionException {
+    if (rally != null && passableSquare(rc, rally)) {
+      return rally;
+    }
+    MapLocation here = rc.getLocation();
+    rally = null;
+    for (Direction direction : Direction.allDirections()) {
+      if (direction == Direction.CENTER) {
+        continue;
+      }
+      MapLocation centre = here.translate(3 * direction.dx, 3 * direction.dy);
+      if (passableSquare(rc, centre)) {
+        rally = centre;
+        break;
+      }
+    }
+    return rally;
+  }
+
+  private static boolean passableSquare(RobotController rc, MapLocation centre)
+      throws GameActionException {
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        MapLocation tile = centre.translate(dx, dy);
+        if (!rc.onTheMap(tile) || !rc.canSenseLocation(tile)
+            || !rc.senseMapInfo(tile).isPassable()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   /** Spawns at most one Baby Rat when the food budget permits an adjacent empty location. */
   private void spawnRat(RobotController rc) throws GameActionException {
     int globalCheese = rc.getGlobalCheese();

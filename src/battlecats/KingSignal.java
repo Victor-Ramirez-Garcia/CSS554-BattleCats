@@ -25,9 +25,14 @@ public final class KingSignal {
   // Set by the first promoted king and never cleared, so a team forms at most one extra king
   // per game even if that king later dies.
   private static final int PROMOTION_SLOT = 3;
+  // PROMOTION_SLOT value written by a late promotion; 1 marks an earlier, income-funded one.
+  private static final int LATE_PROMOTION = 2;
   // Two-round stamp, as in STAMP_SLOT, while a king reports income that could feed another king.
   // Zero means not funded; a stale stamp means no king has confirmed it recently.
   private static final int FUNDING_SLOT = 4;
+  // Late-game rally centre for a second king, stored as x + 1 and y + 1 so zero means none.
+  private static final int RALLY_X_SLOT = 5;
+  private static final int RALLY_Y_SLOT = 6;
 
 
   //PUBLIC METHODS
@@ -96,6 +101,29 @@ public final class KingSignal {
   /** Returns whether a king recently reported income that could feed another king. */
   public static boolean promotionFunded(RobotController rc) throws GameActionException {
     return isFresh(rc.getRoundNum(), rc.readSharedArray(FUNDING_SLOT));
+  }
+
+  /** Publishes the centre of a passable 3x3 where workers gather to form a late king. */
+  public static void publishRally(RobotController rc, MapLocation centre) throws GameActionException {
+    rc.writeSharedArray(RALLY_X_SLOT, centre == null ? 0 : centre.x + 1);
+    rc.writeSharedArray(RALLY_Y_SLOT, centre == null ? 0 : centre.y + 1);
+  }
+
+  /** Returns the published rally centre, or null when no king has chosen one. */
+  public static MapLocation readRally(RobotController rc) throws GameActionException {
+    int x = rc.readSharedArray(RALLY_X_SLOT);
+    int y = rc.readSharedArray(RALLY_Y_SLOT);
+    return x == 0 || y == 0 ? null : new MapLocation(x - 1, y - 1);
+  }
+
+  /** Records a promotion in the late window; workers then stop gathering at the king. */
+  public static void recordLatePromotion(RobotController rc) throws GameActionException {
+    rc.writeSharedArray(PROMOTION_SLOT, LATE_PROMOTION);
+  }
+
+  /** Returns whether a Baby Rat became a king during the late promotion window. */
+  public static boolean latePromotionRecorded(RobotController rc) throws GameActionException {
+    return rc.readSharedArray(PROMOTION_SLOT) == LATE_PROMOTION;
   }
 
   /** Returns whether any Baby Rat on this team has already become a Rat King this game. */

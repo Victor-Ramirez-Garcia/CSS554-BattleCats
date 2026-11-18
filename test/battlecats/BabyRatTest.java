@@ -120,6 +120,33 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void latePromotionIgnoresIncomeAndTheOnePerGameLimitButKeepsUpkeep() throws Exception {
+    // SPEC: From round 1850 a second king is worth points; the engine still caps kings at two.
+    // VALUE: With an earlier promotion recorded and no income report, a rat still promotes if
+    // the bank covers the upgrade plus two kings' upkeep to round 2000.
+    Object[][] cases = {
+      {"round 1849 uses the early policy", 1849, 2000, 0},
+      {"round 1900, upkeep covered", 1900, 50 + 4 * 100, 1},
+      {"round 1900, one short", 1900, 50 + 4 * 100 - 1, 0},
+      {"round 1990, small bank", 1990, 50 + 4 * 10, 1},
+    };
+    for (Object[] c : cases) {
+      World world = validWorld();
+      world.shared[3] = 1; // an earlier promotion
+      world.shared[4] = 0; // no income report
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      assertEquals((String) c[0], (int) c[3], world.upgrades);
+      if (world.upgrades == 1) {
+        assertEquals((String) c[0], 2, world.shared[3]);
+      }
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
