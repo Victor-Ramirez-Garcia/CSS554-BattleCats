@@ -6,7 +6,10 @@ import battlecode.common.RobotController;
 import battlecode.common.RobotInfo;
 import battlecode.common.UnitType;
 
-/** Fresh home coordinates for this bot's single king; only the king publishes. */
+/**
+ * Fresh home coordinates and promotion funding from one king. With two kings, only the king that
+ * owns the signal publishes, so every rat is told the same home.
+ */
 public final class KingSignal {
 
   //PUBLIC VARS
@@ -19,9 +22,23 @@ public final class KingSignal {
                                                 //after RK was cut off for using too much bytecode
   // Experimental freshness window: accept the previous king turn plus timestamp quantization.
   private static final int MAX_AGE_ROUNDS = 3;
+  // Set by the first promoted king and never cleared, so a team forms at most one extra king
+  // per game even if that king later dies.
+  private static final int PROMOTION_SLOT = 3;
+  // Two-round stamp, as in STAMP_SLOT, while a king reports income that could feed another king.
+  // Zero means not funded; a stale stamp means no king has confirmed it recently.
+  private static final int FUNDING_SLOT = 4;
 
 
   //PUBLIC METHODS
+  /**
+   * Returns whether some king published the home within the freshness window. A king that does
+   * not own the signal takes it over only when this is false, for example after the owner died.
+   */
+  public static boolean homeIsFresh(RobotController rc) throws GameActionException {
+    return isFresh(rc.getRoundNum(), rc.readSharedArray(STAMP_SLOT));
+  }
+
   /** Publishes after king movement. Engine 1.2.6 only permits kings to write shared memory. */
   public static void publish(RobotController rc) throws GameActionException {
     // A bytecode pause between coordinate writes must not expose a mixed home as fresh.
@@ -42,8 +59,7 @@ public final class KingSignal {
       return null;
     }
     
-    int age = round - 2 * (stamp - 1);
-    if (age < 0 || age > MAX_AGE_ROUNDS) {
+    if (!isFresh(round, stamp)) {
       return null;
     }
     int x = rc.readSharedArray(X_SLOT);
@@ -63,6 +79,39 @@ public final class KingSignal {
   }
 
   
+  /**
+   * Records that this team has promoted a Baby Rat. Call it right after becomeRatKing: the robot
+   * is a king from that moment, which the engine requires for shared-memory writes.
+   */
+  public static void recordPromotion(RobotController rc) throws GameActionException {
+    rc.writeSharedArray(PROMOTION_SLOT, 1);
+  }
+
+  /** Publishes whether this king's recent income could feed another king. Kings only. */
+  public static void publishPromotionFunding(RobotController rc, boolean funded)
+      throws GameActionException {
+    rc.writeSharedArray(FUNDING_SLOT, funded ? rc.getRoundNum() / 2 + 1 : 0);
+  }
+
+  /** Returns whether a king recently reported income that could feed another king. */
+  public static boolean promotionFunded(RobotController rc) throws GameActionException {
+    return isFresh(rc.getRoundNum(), rc.readSharedArray(FUNDING_SLOT));
+  }
+
+  /** Returns whether any Baby Rat on this team has already become a Rat King this game. */
+  public static boolean promotionRecorded(RobotController rc) throws GameActionException {
+    return rc.readSharedArray(PROMOTION_SLOT) != 0;
+  }
+
+
   //PRIVATE METHODS
+  private static boolean isFresh(int round, int stamp) {
+    if (stamp == 0) {
+      return false;
+    }
+    int age = round - 2 * (stamp - 1);
+    return age >= 0 && age <= MAX_AGE_ROUNDS;
+  }
+
   private KingSignal() {}
 }

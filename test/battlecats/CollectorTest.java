@@ -680,6 +680,8 @@ public class CollectorTest {
                 case "getGlobalCheese": return globalCheese;
                 case "readSharedArray": return shared[(Integer) args[0]];
                 case "isBeingCarried": case "isBeingThrown": return false;
+                // No scenario here has seven allied Baby Rats in one 3x3, so the engine refuses.
+                case "canBecomeRatKing": return false;
                 case "isMovementReady": return movementReady;
                 case "isActionReady": return actionReady;
                 case "getActionCooldownTurns": return actionReady ? 0 : 10;
