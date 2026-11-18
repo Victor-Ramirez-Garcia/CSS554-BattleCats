@@ -13,7 +13,7 @@ from sim_report import print_summary, write_report
 
 
 def pair(case="farm-A", side="A", end=2000, checkpoint="FINAL", delivered=(80, 100),
-         winner="candidatebot", reason="MORE_POINTS"):
+         winner="candidatebot", reason="MORE_POINTS", extra=({}, {})):
     round_number = (min(1000, end) if checkpoint == "COMMON_1000" else
                     int(checkpoint[6:]) if checkpoint.startswith("ROUND_") else end)
     rows = []
@@ -24,8 +24,17 @@ def pair(case="farm-A", side="A", end=2000, checkpoint="FINAL", delivered=(80, 1
                          Package="candidatebot" if index == 0 else "baselinebot", Seed=7,
                          DeliveredCheese=delivered[index], ReserveCheese=100, Kings=1,
                          BabyRats=4, CatDamage=0, Cooperation="true", Winner=winner,
-                         WinType=reason, FinalRound=end, LastKingAliveRound=end))
+                         WinType=reason, FinalRound=end, LastKingAliveRound=end, **extra[index]))
     return rows
+
+
+def margin_pair(case, side, end, checkpoint, delivered, ours, theirs, winner="baseline"):
+    """A pair with every margin column; ours/theirs override the zero defaults."""
+    from sim_runtime import MARGIN_METRICS
+    base = {name: 0 for name in MARGIN_METRICS}
+    return pair(case=case, side=side, end=end, checkpoint=checkpoint, delivered=delivered,
+                winner=winner, reason="RATKING_DESTROYED",
+                extra=({**base, **ours}, {**base, **theirs}))
 
 
 class SimReportTests(unittest.TestCase):
@@ -238,6 +247,53 @@ class SimReportTests(unittest.TestCase):
         note = self.pr_report(pair(), 1, dict(status="RUNNING"))
         self.assertIn("**RUNNING: 1/1 complete match pairs.**", note)
         self.assertIn("not a completed comparison", note)
+
+    def short_games(self):
+        """Two early losses: 137 and 180 rounds, so round 100 is the fixed window."""
+        rows = []
+        for case, side, end, king_death in (("small-A", "A", 137, 137), ("small-B", "B", 180, 0)):
+            rows += margin_pair(case, side, end, "ROUND_50", (10, 30), dict(RatsLost=1), dict(RatsSpawned=4))
+            rows += margin_pair(case, side, end, "ROUND_100", (60, 140),
+                                dict(RatsLost=5, BitesOnEnemyRats=2, FirstDeliveryRound=40),
+                                dict(KingBitesTaken=0, FirstDeliveryRound=20))
+            rows += margin_pair(case, side, end, "ROUND_150", (90, 300), {}, {})
+            rows += margin_pair(case, side, end, "FINAL", (120, 480),
+                                dict(RatsLost=9, StartingKingDeathRound=king_death, FirstDeliveryRound=40,
+                                     KingBitesTaken=60, PeakKings=1),
+                                dict(FirstDeliveryRound=20, PeakKings=2, KingsFormed=1))
+        return rows
+
+    def test_margin_metrics_use_latest_round_every_game_reached(self):
+        report, _ = self.report(self.short_games(), 2)
+        self.assertIn("## Margin metrics", report)
+        self.assertIn("Round 100 is the latest fixed round every completed game reached", report)
+        self.assertNotIn("Round 150 candidate", report)
+        # Final then round 100: candidate, baseline for each window.
+        self.assertIn("| Delivered cheese | 240 | 960 | 120 | 280 |", report)
+        self.assertIn("| Share of cheese delivered | 20.0% | 80.0% | 30.0% | 70.0% |", report)
+        self.assertIn("| Baby Rats lost | 18 | 0 | 10 | 0 |", report)
+        self.assertIn("| Kings formed by promotion | 0 | 2 |", report)
+        self.assertIn("| Peak kings (max) | 1 | 2 |", report)
+
+    def test_surviving_starting_king_counts_the_whole_window(self):
+        report, _ = self.report(self.short_games(), 2)
+        # Final: died at 137, survived all 180 -> mean 158.5. Round 100: both alive -> 100.
+        self.assertIn("| Starting king survival (rounds, mean) | 158.5 | 158.5 | 100.0 | 100.0 |", report)
+
+    def test_first_delivery_ignores_games_without_one_and_zero_share_is_undefined(self):
+        rows = margin_pair("a-A", "A", 300, "FINAL", (0, 0), {}, dict(FirstDeliveryRound=50))
+        report, _ = self.report(rows, 1)
+        self.assertIn("| First delivery round (mean of games with one) | n/a | 50.0 |", report)
+        self.assertIn("| Share of cheese delivered | n/a | n/a |", report)
+
+    def test_results_from_older_reader_omit_margin_section(self):
+        report, _ = self.report(pair(), 1)
+        self.assertNotIn("## Margin metrics", report)
+
+    def test_pr_note_includes_margin_metrics(self):
+        note = self.pr_report(self.short_games(), 2)
+        self.assertIn("## Margin metrics", note)
+        self.assertIn("| Bites taken by own kings | 120 | 0 | 0 | 0 |", note)
 
 
 if __name__ == "__main__":

@@ -178,6 +178,42 @@ completed cases and are labeled incomplete/failed rather than a successful suite
 5. Save another edit and rerun. Each run gets a new folder. Before proposing a
    PR, commit the candidate and use `-PsimCandidate=HEAD` for exact revisions.
 
+### Measure progress when wins do not move
+
+Against a much stronger opponent every version may lose every game, so the
+win record cannot show whether a change helped. Each `summary.md` therefore
+also has a **Margin metrics** table, read from the engine replays:
+
+| Metric | What it shows |
+| --- | --- |
+| Delivered cheese and share of cheese delivered | Economy, and how much of the gap closed |
+| Starting king survival, kings lost, bites taken by own kings | How long and how well the king holds out |
+| First delivery round, Baby Rats spawned, peak Baby Rats | How fast the economy and army start |
+| Bites on enemy rats, enemy kings and cats; cat damage; Baby Rats lost | Combat traded in each direction |
+| Kings formed by promotion, peak kings | Rat King promotion |
+| Rat traps, cat traps, dirt on the map | Construction at that moment (not cumulative) |
+
+Each metric is shown at the end of the match and at the latest fixed round
+every game reached (replays are sampled at rounds 50, 100, 150, 250, 500 and
+1,000). Use the fixed round for like-for-like comparisons, because a version
+that survives longer also has more time to deliver.
+
+To compare two versions against the same opponent, run each one against that
+opponent and then compare the two run folders:
+
+```powershell
+.\gradlew.bat sim -PsimCandidate=HEAD~1 -PsimBaseline=opponent-pool/champion-sprint2 -PsimBaselinePackage=awubot -PsimOutput=matches/before-vs-champion
+.\gradlew.bat sim -PsimCandidate=HEAD -PsimBaseline=opponent-pool/champion-sprint2 -PsimBaselinePackage=awubot -PsimOutput=matches/after-vs-champion
+python tools/sim_compare.py matches/before-vs-champion matches/after-vs-champion
+```
+
+`opponent-pool/champion-sprint2` is an example ref; use any opponent ref and its
+Java package. The comparison is written to `compare-vs-<earlier run>.md` in the
+later run's folder. It lists the change in each metric and, per game, the end
+round, the cheese share and when the starting king died. It refuses runs that
+recorded a different opponent commit, opponent package or engine version, and
+it compares only games with the same map, starting side and seed in both runs.
+
 ### Commit and PR notes
 
 Use a descriptive message for each meaningful commit: what behavior changed
