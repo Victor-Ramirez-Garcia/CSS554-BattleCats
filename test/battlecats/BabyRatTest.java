@@ -120,6 +120,32 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void bitesAnAdjacentEnemyRatOnlyAfterCooperationAndFacesItFirst() throws Exception {
+    // SPEC: Biting an enemy during cooperation is a backstab; after it, workers fight back.
+    // VALUE: The worker bites only outside cooperation, turning toward an enemy behind it when
+    // it can, and never bites when it cannot face the target.
+    MapLocation ahead = CENTER.add(Direction.NORTH);
+    MapLocation behind = CENTER.add(Direction.SOUTH);
+    Object[][] cases = {
+      {"cooperation", true, true, ahead, null},
+      {"enemy ahead", false, false, ahead, ahead},
+      {"enemy behind, can turn", false, true, behind, behind},
+      {"enemy behind, cannot turn", false, false, behind, null},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.cooperation = (boolean) c[1];
+      world.turnable = (boolean) c[2];
+      world.robots.add(robot(UnitType.BABY_RAT, Team.B, (MapLocation) c[3]));
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      MapLocation expected = (MapLocation) c[4];
+      assertEquals((String) c[0], expected == null ? List.of() : List.of(expected), world.bites);
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -146,6 +172,10 @@ public class BabyRatTest {
     int cheese = 400;
     int round = 100;
     int upgrades;
+    boolean cooperation;
+    boolean turnable;
+    Direction facing = Direction.NORTH;
+    final List<MapLocation> bites = new ArrayList<>();
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -166,8 +196,15 @@ public class BabyRatTest {
         case "getGlobalCheese": return cheese;
         case "getAllCheese": return cheese;
         case "isBeingCarried":
-        case "isBeingThrown":
-        case "canTurn": return false;
+        case "isBeingThrown": return false;
+        case "canTurn": return turnable;
+        case "isCooperation": return cooperation;
+        case "turn": facing = (Direction) args[0]; return null;
+        case "canAttack": return canBite((MapLocation) args[0]);
+        case "attack":
+          assertTrue("Bite must be legal", canBite((MapLocation) args[0]));
+          bites.add((MapLocation) args[0]);
+          return null;
         case "isActionReady": return true;
         case "getActionCooldownTurns": return 0;
         case "senseNearbyRobots": return robots.toArray(new RobotInfo[0]);
@@ -183,7 +220,7 @@ public class BabyRatTest {
           upgrades++;
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
-        case "getDirection": return Direction.NORTH;
+        case "getDirection": return facing;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }
@@ -193,6 +230,13 @@ public class BabyRatTest {
     /** Writes the king's income report as KingSignal stamps it on the given round. */
     void fundPromotionAt(int reportRound) {
       shared[4] = reportRound / 2 + 1;
+    }
+
+    /** Engine rule for this fixture: adjacent, and inside the 90-degree cone we face. */
+    private boolean canBite(MapLocation target) {
+      Direction toward = CENTER.directionTo(target);
+      return CENTER.distanceSquaredTo(target) <= 2 && !CENTER.equals(target)
+          && (toward == facing || toward == facing.rotateLeft() || toward == facing.rotateRight());
     }
 
     private boolean engineAllowsUpgrade() {
