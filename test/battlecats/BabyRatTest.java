@@ -174,6 +174,8 @@ public class BabyRatTest {
       {"three enemies, alone", 3, 0, 100, true, "FALL BACK"},
       {"three enemies, two allies", 3, 2, 100, true, "FIGHT"},
       {"one enemy, badly hurt", 1, 0, 30, true, "FALL BACK"},
+      {"one enemy, just above the fall-back health", 1, 0, 31, true, "FIGHT"},
+      {"one enemy, badly hurt, still scanning for home", 1, 0, 30, false, null},
       {"three enemies, no king known", 3, 0, 100, false, null},
       {"cooperation", 1, 0, 100, true, null},
     };
