@@ -120,6 +120,65 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void latePromotionIgnoresIncomeAndTheOnePerGameLimitButKeepsUpkeep() throws Exception {
+    // SPEC: From round 1850 a second king is worth points; the engine still caps kings at two.
+    // VALUE: With an earlier promotion recorded and no income report, a rat still promotes if
+    // the bank covers the upgrade plus two kings' upkeep to round 2000.
+    Object[][] cases = {
+      {"round 1849 uses the early policy", 1849, 2000, 0},
+      {"round 1900, upkeep covered", 1900, 50 + 4 * 100, 1},
+      {"round 1900, one short", 1900, 50 + 4 * 100 - 1, 0},
+      {"round 1990, small bank", 1990, 50 + 4 * 10, 1},
+    };
+    for (Object[] c : cases) {
+      World world = validWorld();
+      world.shared[3] = 1; // an earlier promotion
+      world.shared[4] = 0; // no income report
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      assertEquals((String) c[0], (int) c[3], world.upgrades);
+      if (world.upgrades == 1) {
+        assertEquals((String) c[0], 2, world.shared[3]);
+      }
+    }
+  }
+
+  @Test
+  public void workersRallyOnlyWhenALateKingCanForm() throws Exception {
+    // SPEC: From round 1850 workers gather at the king's published square to form a second king.
+    // VALUE: They gather only when the bank pays for it, no second king is alive and a square is
+    // published; otherwise they keep collecting, as the engine would refuse the promotion.
+    int funded = 50 + 4 * 100;
+    Object[][] cases = {
+      {"all conditions met", 1900, funded, true, false, true},
+      {"before the window", 1849, funded, true, false, false},
+      {"bank one short", 1900, funded - 1, true, false, false},
+      {"no square published", 1900, funded, false, false, false},
+      {"second king alive", 1900, funded, true, true, false},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+      if ((boolean) c[3]) {
+        world.shared[5] = CENTER.x + 4;
+        world.shared[6] = CENTER.y + 1;
+      }
+      if ((boolean) c[4]) {
+        world.shared[7] = world.round / 2 + 1;
+      }
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      boolean rallied = world.indicators.stream().anyMatch(text -> text.startsWith("RALLY"));
+      assertEquals((String) c[0], (boolean) c[5], rallied);
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -146,6 +205,7 @@ public class BabyRatTest {
     int cheese = 400;
     int round = 100;
     int upgrades;
+    final List<String> indicators = new ArrayList<>();
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -184,6 +244,7 @@ public class BabyRatTest {
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
         case "getDirection": return Direction.NORTH;
+        case "setIndicatorString": indicators.add((String) args[0]); return null;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }
