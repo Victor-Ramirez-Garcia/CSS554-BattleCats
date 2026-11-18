@@ -327,11 +327,10 @@ public class BabyRat {
     }
   }
 
-  //function for picking up a cheeseTarget that we're right next to 
-  //CHANGE: consider expanding it for also pick up enemy baby rats so we don't need 2 functions
   /**
-   * After cooperation, turns around when we lost health since our last turn but see no enemy
-   * rat, because a 90-degree vision cone hides attackers behind us. Returns the fresh view.
+   * After cooperation, turns around when we lost health since our last turn but see no hostile
+   * robot, because a 90-degree vision cone hides attackers behind us. A visible cat or enemy
+   * explains the damage, so we keep facing it. Returns the fresh view.
    */
   private RobotInfo[] lookForUnseenAttacker(RobotController rc, RobotInfo[] observations)
       throws GameActionException {
@@ -341,9 +340,9 @@ public class BabyRat {
     if (!hurt || rc.isCooperation() || !rc.canTurn()) {
       return observations;
     }
-    Team enemy = rc.getTeam().opponent();
+    Team us = rc.getTeam();
     for (RobotInfo robot : observations) {
-      if (robot.getTeam() == enemy) {
+      if (robot.getTeam() != us) {
         return observations;
       }
     }
@@ -442,6 +441,8 @@ public class BabyRat {
     return true;
   }
 
+  //function for picking up a cheeseTarget that we're right next to 
+  //CHANGE: consider expanding it for also pick up enemy baby rats so we don't need 2 functions
   private boolean pickUp(RobotController rc) throws GameActionException {
     if (cheeseTarget != null && rc.canPickUpCheese(cheeseTarget)) {
       rc.pickUpCheese(cheeseTarget);

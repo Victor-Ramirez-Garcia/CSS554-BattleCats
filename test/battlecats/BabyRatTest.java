@@ -146,6 +146,65 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void closesOnEnemyRatsOnlyWhenNotOutnumberedInSight() throws Exception {
+    // SPEC: After a betrayal, empty workers fight when visible allies match visible enemies.
+    // VALUE: A lone worker meeting one enemy rat fights; meeting three it keeps working.
+    Object[][] cases = {
+      {"one enemy, alone", 1, 0, true},
+      {"three enemies, alone", 3, 0, false},
+      {"three enemies, two allies", 3, 2, true},
+      {"cooperation", 1, 0, false},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.cooperation = c[0].equals("cooperation");
+      world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      for (int i = 0; i < (int) c[1]; i++) {
+        world.robots.add(robot(UnitType.BABY_RAT, Team.B, new MapLocation(9 + i, 14)));
+      }
+      for (int i = 0; i < (int) c[2]; i++) {
+        world.robots.add(robot(UnitType.BABY_RAT, Team.A, new MapLocation(9 + i, 12)));
+      }
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      boolean fought = world.indicators.stream().anyMatch(text -> text.startsWith("FIGHT"));
+      assertEquals((String) c[0], (boolean) c[3], fought);
+    }
+  }
+
+  @Test
+  public void turnsAroundOnlyWhenHurtByAnAttackerItCannotSee() throws Exception {
+    // SPEC: A 90-degree cone hides attackers behind us; a visible cat or enemy explains damage.
+    // VALUE: Hurt with nothing hostile in view, the worker turns to face the other way;
+    // otherwise it keeps its facing. Movement is not ready, so nothing else turns it.
+    Object[][] cases = {
+      {"hurt, nothing hostile in view", false, false, 90, Direction.SOUTH},
+      {"not hurt", false, false, 100, Direction.NORTH},
+      {"hurt during cooperation", true, false, 90, Direction.NORTH},
+      {"hurt with a cat in view", false, true, 90, Direction.NORTH},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.round = 101;
+      world.turnable = true;
+      world.cooperation = (boolean) c[1];
+      world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      if ((boolean) c[2]) {
+        world.robots.add(robot(UnitType.CAT, Team.NEUTRAL, new MapLocation(10, 18)));
+      }
+      BabyRat rat = new BabyRat(1);
+      rat.takeTurn(world.rc);
+      world.facing = Direction.NORTH;
+      world.health = (int) c[3];
+
+      rat.takeTurn(world.rc);
+
+      assertEquals((String) c[0], c[4], world.facing);
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -176,6 +235,8 @@ public class BabyRatTest {
     boolean turnable;
     Direction facing = Direction.NORTH;
     final List<MapLocation> bites = new ArrayList<>();
+    final List<String> indicators = new ArrayList<>();
+    int health = 100;
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -221,6 +282,8 @@ public class BabyRatTest {
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
         case "getDirection": return facing;
+        case "getHealth": return health;
+        case "setIndicatorString": indicators.add((String) args[0]); return null;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }
