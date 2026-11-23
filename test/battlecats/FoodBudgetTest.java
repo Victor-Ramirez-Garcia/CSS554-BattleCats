@@ -30,6 +30,21 @@ public class FoodBudgetTest {
   }
 
   @Test
+  public void aKingWithTwelveBabiesReplacesWorkersOnlyFromAHealthyBank() {
+    // SPEC: The 40-cheese price needs 800 food left after buying; cheaper prices do not.
+    // VALUE: The bank keeps food for later fights instead of holding sixteen workers.
+    Object[][] cases = {
+      {"exactly at the floor", 840, 40, true},
+      {"one below the floor", 839, 40, false},
+      {"opening bank", 2500, 40, true},
+      {"eight to eleven babies are not capped", 500, 30, true},
+    };
+    for (Object[] c : cases) {
+      assertEquals((String) c[0], c[3], new FoodBudget().canSpawn((int) c[1], (int) c[2]));
+    }
+  }
+
+  @Test
   public void requestsDeliveryAtTheLowFoodBoundary() {
     for (int bank : new int[] {-1, 0, 199, 200, 201, Integer.MAX_VALUE}) {
       assertEquals("Bank=" + bank, bank <= 200, FoodBudget.needsDelivery(bank));

@@ -25,6 +25,16 @@ public final class FoodBudget {
               * (REBUILD_BABIES / GameConstants.NUM_ROBOTS_FOR_COST_INCREASE - 1);
   // Experiment: bootstrap or replace sixteen living babies; their initial purchases total 400.
   private static final int BOOTSTRAP_BABIES = 16;
+  // Experiment: 3mice often holds about 12 workers while its bank grows, while we paid 40 per
+  // replacement to stay at 16 and ran dry after round 250. Untuned: 800 is near the 870 bank
+  // 3mice held at 12 workers on DefaultMedium-A, and still lets the 2500 opening reach 16.
+  private static final int CAPPED_CREW_BABIES = 12;
+  private static final int CAPPED_CREW_BANK_FLOOR = 800;
+  // Engine rule: this is the price while 12 to 15 babies are alive.
+  private static final int CAPPED_CREW_COST =
+      GameConstants.BUILD_ROBOT_BASE_COST
+          + GameConstants.BUILD_ROBOT_COST_INCREASE
+              * (CAPPED_CREW_BABIES / GameConstants.NUM_ROBOTS_FOR_COST_INCREASE);
 
 
   // Engine rule: base 10 + 10 * floor(living babies / 4). At sixteen babies the next cost is 50.
@@ -100,11 +110,19 @@ public final class FoodBudget {
     return windowFull && windowNetIncome >= PROMOTION_SURPLUS_PER_WINDOW;
   }
 
-  /** The engine's current cost bands also permit replacement when opening workers have died. */
+  /**
+   * Decides a rat purchase from the price, which the engine sets from the living baby count.
+   * Under eight babies the king rebuilds down to REBUILD_FOOD_FLOOR. With 12 to 15 babies it
+   * replaces workers only while the bank stays above CAPPED_CREW_BANK_FLOOR. Otherwise the
+   * spending reserve and growth credit apply, which also permits replacing dead opening workers.
+   */
   public boolean canSpawn(int globalCheese, int ratCost) {
     if (ratCost > 0 && ratCost <= REBUILD_MAX_COST
         && globalCheese - ratCost >= REBUILD_FOOD_FLOOR) {
       return true;
+    }
+    if (ratCost == CAPPED_CREW_COST && globalCheese - ratCost < CAPPED_CREW_BANK_FLOOR) {
+      return false;
     }
     return ratCost > 0
         && canSpend(globalCheese, ratCost)
