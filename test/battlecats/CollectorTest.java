@@ -363,6 +363,36 @@ public class CollectorTest {
   }
 
   @Test
+  public void aLoadedWorkerTakesOneCloseSafePileBeforeGoingHome() throws Exception {
+    // SPEC: With 20-39 cheese, a worker away from the king may take one close pile.
+    // VALUE: It tops up only when that cannot delay needed food or walk into visible danger.
+    Object[][] cases = {
+      {"close safe pile", 20, 1000, null, true},
+      {"just below the load limit", 39, 1000, null, true},
+      {"at the load limit", 40, 1000, null, false},
+      {"food is low", 20, 200, null, false},
+      {"enemy in view", 20, 1000, baby(202, Team.B, at(7, 6)), false},
+      {"cat in view", 20, 1000, cat(at(8, 6), Direction.WEST), false},
+    };
+    for (Object[] c : cases) {
+      World world = new World(at(5, 5), Direction.EAST);
+      world.robots.add(king(101, Team.A, at(10, 5)));
+      world.rawCheese = (int) c[1];
+      world.globalCheese = (int) c[2];
+      if (c[3] != null) {
+        world.robots.add((RobotInfo) c[3]);
+      }
+      MapLocation pile = at(6, 5);
+      world.cheese.put(pile, 5);
+
+      world.takeTurn(new BabyRat(world.id));
+
+      assertEquals((String) c[0], (boolean) c[4] ? Arrays.asList(pile) : Collections.emptyList(),
+          world.pickups);
+    }
+  }
+
+  @Test
   public void depositsTwentyWithoutWaitingForAnotherPile() throws Exception {
     int[] startingLoads = {0, 19, 20, 21};
     for (int cargo : startingLoads) {

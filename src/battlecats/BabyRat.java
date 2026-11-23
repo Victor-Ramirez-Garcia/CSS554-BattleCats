@@ -20,6 +20,15 @@ public class BabyRat {
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
   private static final int RETURN_CHEESE_THRESHOLD = 20;
+  // Experiment: through round 250 opponents delivered about 36 cheese per trip and we delivered
+  // 21. A worker holding 20 to 39 cheese may keep collecting close, safe piles before going home.
+  // Untuned experimental cap, not an engine limit: about two 20-cheese piles per trip.
+  private static final int TOP_UP_CHEESE_LIMIT = 40;
+  // Untuned experiment: r^2 16 (four tiles) keeps each detour to a few moves from the worker.
+  private static final int TOP_UP_RANGE_SQUARED = 16;
+  // Experiment: bounds the whole detour, including several small piles or one that walls or other
+  // rats make unreachable.
+  private static final int TOP_UP_MAX_ROUNDS = 10;
   // Experiment: three more bites kill a Baby Rat at this health.
   private static final int RETREAT_HEALTH = 30;
   // Engine rule: at round 2000 the winner is scored on shares of cat damage, living Rat Kings
@@ -40,6 +49,7 @@ public class BabyRat {
   private int homeScans;
   private int deliveries;
   private boolean returningFood;
+  private int topUpStartRound = -1;
   // Only current visibility is cached here; observations retained for combat stay separate.
   private RobotInfo[] currentRobots;
   private MapLocation visionLocation;
@@ -76,9 +86,10 @@ public class BabyRat {
 
     //if we know where a king is but don't have enough cheese to return
     //then the BR should find cheese
-    boolean returning = rc.getRawCheese() >= RETURN_CHEESE_THRESHOLD;
+    boolean toppingUp = shouldTopUp(rc, observations);
+    boolean returning = rc.getRawCheese() >= RETURN_CHEESE_THRESHOLD && !toppingUp;
     boolean scanningForHome = kingLocation == null && homeScans < 4;
-    if (!returning && !scanningForHome) {
+    if (!returning && !scanningForHome && !toppingUp) {
       findCheese(rc);
     }
 
@@ -102,7 +113,8 @@ public class BabyRat {
     // Late in the game, gather at the king so seven workers can share a 3x3 and promote.
     // Rally only when a promotion can succeed: the bank pays for it, no second king is alive
     // (the engine refuses a third after round 1200) and the king found a passable square.
-    if (!returning && isLatePromotionWindow(rc) && !KingSignal.latePromotionRecorded(rc)
+    if (!returning && !toppingUp && isLatePromotionWindow(rc)
+        && !KingSignal.latePromotionRecorded(rc)
         && lateKingAffordable(rc) && !KingSignal.secondKingAlive(rc)) {
       MapLocation rally = KingSignal.readRally(rc);
       if (rally != null) {
@@ -340,6 +352,54 @@ public class BabyRat {
       visionActionCooldown = actionCooldown;
     }
     return currentRobots;
+  }
+
+  /**
+   * Returns whether a loaded worker should detour to a close pile before going home. It may take
+   * several piles while it holds 20 to 39 cheese, for at most TOP_UP_MAX_ROUNDS in total. It never
+   * delays cargo when food is low, the king is unknown, or a cat or enemy is in view.
+   */
+  private boolean shouldTopUp(RobotController rc, RobotInfo[] robots) throws GameActionException {
+    int cargo = rc.getRawCheese();
+    if (cargo < RETURN_CHEESE_THRESHOLD || cargo >= TOP_UP_CHEESE_LIMIT) {
+      topUpStartRound = -1;
+      return false;
+    }
+    int round = rc.getRoundNum();
+    if (topUpStartRound < 0) {
+      topUpStartRound = round;
+    }
+    // A worker already in transfer range banks its load instead of walking away from the king.
+    if (round - topUpStartRound >= TOP_UP_MAX_ROUNDS || kingLocation == null
+        || kingInTransferRange(rc)
+        || FoodBudget.needsDelivery(rc.getGlobalCheese())) {
+      cheeseTarget = null;
+      return false;
+    }
+    Team us = rc.getTeam();
+    for (RobotInfo robot : robots) {
+      if (robot.getTeam() != us) {
+        cheeseTarget = null;
+        return false;
+      }
+    }
+    findCheese(rc);
+    if (cheeseTarget == null
+        || rc.getLocation().distanceSquaredTo(cheeseTarget) > TOP_UP_RANGE_SQUARED) {
+      cheeseTarget = null;
+      return false;
+    }
+    return true;
+  }
+
+  private boolean kingInTransferRange(RobotController rc) {
+    MapLocation here = rc.getLocation();
+    for (MapLocation part : UnitType.RAT_KING.getAllTypeLocations(kingLocation)) {
+      if (here.distanceSquaredTo(part) <= GameConstants.CHEESE_TRANSFER_RADIUS_SQUARED) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void findCheese(RobotController rc) throws GameActionException {
