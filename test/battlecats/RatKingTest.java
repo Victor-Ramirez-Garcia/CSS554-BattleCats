@@ -27,19 +27,38 @@ public class RatKingTest {
     private static final MapLocation ALLY_NEAR = new MapLocation(10, 11);
     private static final MapLocation ALLY_FAR = new MapLocation(15, 15);
 
-    /* SPEC: Spawning preserves the food reserve.
+    /* SPEC: With eight or more babies, spawning preserves the food reserve.
        VALUE: No rat is spawned when the purchase would breach the reserve.
-       SCENARIO: The bank contains exactly the reserve plus less than the rat cost.
+       SCENARIO: The bank contains exactly the reserve plus less than the rat cost; the 30-cheese
+       price means eight to eleven babies are alive, above the rebuild band.
        PREVENTS: Spending food needed for king survival. */
     @Test public void spawnRatRejectsPurchaseBelowFoodReserve() throws Exception {
         World world = world();
-        world.bank = 309;
-        world.ratCost = 10;
+        world.bank = 329;
+        world.ratCost = 30;
 
         new RatKing().takeTurn(world.rc);
 
         assertEquals(0, world.births);
-        assertEquals(309, world.bank);
+        assertEquals(329, world.bank);
+    }
+
+    /* SPEC: With fewer than eight babies, the king may spend down to a 100-food floor.
+       VALUE: One rat is bought from a mid-reserve bank; a bank below the floor buys none.
+       SCENARIO: The lowest rat prices signal that few workers remain.
+       PREVENTS: A king starving on its reserve with no workers to bring food. */
+    @Test public void spawnRatRebuildsBelowReserveWhenAlmostNoWorkersRemain() throws Exception {
+        int[][] cases = {{265, 1, 255}, {110, 1, 100}, {109, 0, 109}};
+        for (int[] c : cases) {
+            World world = world();
+            world.bank = c[0];
+            world.ratCost = 10;
+
+            new RatKing().takeTurn(world.rc);
+
+            assertEquals("births at bank " + c[0], c[1], world.births);
+            assertEquals("bank after " + c[0], c[2], world.bank);
+        }
     }
 
     /* SPEC: An eligible king spawns at most one rat per turn.

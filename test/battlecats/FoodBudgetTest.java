@@ -10,6 +10,26 @@ import org.junit.Test;
 /** Pure bank-ledger cases; amounts are test controls rather than simulated map income. */
 public class FoodBudgetTest {
   @Test
+  public void aKingWithFewerThanEightBabiesRebuildsBelowTheNormalReserve() {
+    // SPEC: At the two lowest rat costs, spending may go down to the 100-food rebuild floor.
+    // VALUE: A king with almost no workers buys income instead of starving on its reserve.
+    Object[][] cases = {
+      {"mid-reserve at base cost", 265, 10, true},
+      {"exactly at the floor after buying", 110, 10, true},
+      {"one below the floor", 109, 10, false},
+      {"empty bank", 0, 10, false},
+      {"four to seven babies rebuild", 265, 20, true},
+      {"second price exactly at the floor", 120, 20, true},
+      {"second price one below the floor", 119, 20, false},
+      {"eight or more babies keep the reserve", 265, 30, false},
+      {"invalid cost", 265, 0, false},
+    };
+    for (Object[] c : cases) {
+      assertEquals((String) c[0], c[3], new FoodBudget().canSpawn((int) c[1], (int) c[2]));
+    }
+  }
+
+  @Test
   public void requestsDeliveryAtTheLowFoodBoundary() {
     for (int bank : new int[] {-1, 0, 199, 200, 201, Integer.MAX_VALUE}) {
       assertEquals("Bank=" + bank, bank <= 200, FoodBudget.needsDelivery(bank));

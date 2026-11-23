@@ -13,6 +13,16 @@ public final class FoodBudget {
   // The engine consumes two global cheese per king per round; more kings shorten this runway.
   private static final int DELIVERY_THRESHOLD = 200;    //what's this and why are we doing it
   private static final int SPENDING_RESERVE = 300;
+  // Experiment: below eight babies income is too low to refill the reserve, so holding it only
+  // delays starvation. On default maps kings sat at four babies until they starved. Rebuild
+  // down to 50 rounds of food for one king, which is only 25 rounds while two kings are alive.
+  private static final int REBUILD_BABIES = 8;
+  private static final int REBUILD_FOOD_FLOOR = 100;
+  // Engine rule: the price stays at or below this while fewer than REBUILD_BABIES are alive.
+  private static final int REBUILD_MAX_COST =
+      GameConstants.BUILD_ROBOT_BASE_COST
+          + GameConstants.BUILD_ROBOT_COST_INCREASE
+              * (REBUILD_BABIES / GameConstants.NUM_ROBOTS_FOR_COST_INCREASE - 1);
   // Experiment: bootstrap or replace sixteen living babies; their initial purchases total 400.
   private static final int BOOTSTRAP_BABIES = 16;
 
@@ -92,6 +102,10 @@ public final class FoodBudget {
 
   /** The engine's current cost bands also permit replacement when opening workers have died. */
   public boolean canSpawn(int globalCheese, int ratCost) {
+    if (ratCost > 0 && ratCost <= REBUILD_MAX_COST
+        && globalCheese - ratCost >= REBUILD_FOOD_FLOOR) {
+      return true;
+    }
     return ratCost > 0
         && canSpend(globalCheese, ratCost)
         && (ratCost < GROWTH_COST_THRESHOLD || growthCredit >= investment(ratCost));
