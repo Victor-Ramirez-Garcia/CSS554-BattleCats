@@ -393,6 +393,55 @@ public class CollectorTest {
   }
 
   @Test
+  public void aFighterHoldsTheFrontOnceCooperationEnds() throws Exception {
+    // SPEC: After cooperation, an empty fighter heads for the front instead of visible cheese.
+    // VALUE: Collectors and cooperation-time fighters keep collecting.
+    // The 24x24 test map centers on (12, 12), so the front for a king at (2, 2) is (9, 9).
+    assertEquals(at(9, 9), BabyRat.frontLocation(at(2, 2), 24, 24));
+    Object[][] cases = {
+      {"fighter after cooperation", true, false, at(4, 4)},
+      {"fighter during cooperation", true, true, at(3, 4)},
+      {"collector after cooperation", false, false, at(3, 4)},
+    };
+    for (Object[] c : cases) {
+      World world = new World(at(3, 3), Direction.NORTH);
+      world.robots.add(king(101, Team.A, at(2, 2)));
+      world.shared[0] = 2;
+      world.shared[1] = 2;
+      world.shared[2] = 1;
+      world.cooperation = (boolean) c[2];
+      world.cheese.put(at(3, 6), 5);
+
+      world.takeTurn(new BabyRat(world.id, (boolean) c[1]));
+
+      assertEquals((String) c[0], c[3], world.location);
+    }
+  }
+
+  @Test
+  public void aFighterEvadesACatItWillNotEngage() throws Exception {
+    // SPEC: A fighter walking to the front evades a visible cat like a collector would.
+    // VALUE: It does not step toward the cat on its way to the front at (9, 9).
+    World world = new World(at(3, 3), Direction.NORTH);
+    world.robots.add(king(101, Team.A, at(2, 2)));
+    world.shared[0] = 2;
+    world.shared[1] = 2;
+    world.shared[2] = 1;
+    world.cooperation = false;
+    world.health = 74; // Below active cat-engagement health, so only evasion applies.
+    // Close enough and facing the fighter, so CatTactics rates the current tile as risky.
+    MapLocation cat = at(4, 5);
+    world.robots.add(cat(cat, Direction.SOUTH));
+    assertTrue(world.visible(cat));
+    int before = world.location.distanceSquaredTo(cat);
+
+    world.takeTurn(new BabyRat(world.id, true));
+
+    assertNotEquals(at(4, 4), world.location);
+    assertTrue("moved away from the cat", world.location.distanceSquaredTo(cat) > before);
+  }
+
+  @Test
   public void depositsTwentyWithoutWaitingForAnotherPile() throws Exception {
     int[] startingLoads = {0, 19, 20, 21};
     for (int cargo : startingLoads) {
