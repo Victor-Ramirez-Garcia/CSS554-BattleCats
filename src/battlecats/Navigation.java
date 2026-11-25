@@ -30,6 +30,18 @@ public class Navigation {
     }
 
     public void explore(RobotController rc) throws GameActionException {
+        moveToward(rc, explorationTarget(rc));
+        // Look around even while waiting for a movement cooldown.
+        if (rc.getRoundNum() % 4 == 0 && rc.canTurn()) {
+            rc.turn(rc.getDirection().rotateRight().rotateRight());
+        }
+    }
+
+    /**
+     * Returns the current random exploration waypoint, choosing a new one on arrival or after 30
+     * rounds. Construction digs toward it, so explorers can leave dirt-walled pockets.
+     */
+    public MapLocation explorationTarget(RobotController rc) {
         if (
                 waypoint == null                                        //there isn't a waypoint set
                 || rc.getLocation().distanceSquaredTo(waypoint) <= 2    //we're at the waypoint
@@ -39,11 +51,7 @@ public class Navigation {
             waypoint = new MapLocation(random.nextInt(rc.getMapWidth()), random.nextInt(rc.getMapHeight()));
             waypointRound = rc.getRoundNum();
         }
-        moveToward(rc, waypoint);
-        // Look around even while waiting for a movement cooldown.
-        if (rc.getRoundNum() % 4 == 0 && rc.canTurn()) {
-            rc.turn(rc.getDirection().rotateRight().rotateRight());
-        }
+        return waypoint;
     }
 
     public void moveToward(RobotController rc, MapLocation target) throws GameActionException {

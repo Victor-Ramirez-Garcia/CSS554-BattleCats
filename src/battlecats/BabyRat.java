@@ -114,7 +114,13 @@ public class BabyRat {
       return;
     }
     //try to build something
-    construction.tryBuild(rc, kingLocation, objective, observations);
+    // An explorer has no cheese objective, but its waypoint can lie behind dirt. On pipes the
+    // king starts in a dirt-walled pocket without a mine, and workers that never dig starve it.
+    MapLocation buildObjective = objective;
+    if (buildObjective == null && !returning && !scanningForHome) {
+      buildObjective = navigation.explorationTarget(rc);
+    }
+    construction.tryBuild(rc, kingLocation, buildObjective, observations);
     //ATTACK!!! KILL!!!
     CatTactics.tryBite(rc, observations);
     //RUN AWAY!!!

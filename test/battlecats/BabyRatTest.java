@@ -120,6 +120,23 @@ public class BabyRatTest {
     }
   }
 
+  @Test
+  public void anExplorerDigsDirtOnTheWayToItsWaypoint() throws Exception {
+    // SPEC: A worker with no cheese in sight explores toward a waypoint and may clear dirt.
+    // VALUE: The dirt tile toward the waypoint is removed; on pipes our king starts in a
+    // dirt-walled pocket with no mine, and workers that never dug starved it.
+    // SCENARIO: The king is in view, no cheese is visible and dirt blocks the first step.
+    World world = new World();
+    world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+    MapLocation waypoint = new Navigation(1).explorationTarget(world.rc);
+    MapLocation blocked = CENTER.add(CENTER.directionTo(waypoint));
+    world.dirt.add(blocked);
+
+    new BabyRat(1).takeTurn(world.rc);
+
+    assertEquals(List.of(blocked), world.dug);
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -142,6 +159,8 @@ public class BabyRatTest {
         RobotController.class.getClassLoader(), new Class<?>[] {RobotController.class}, this);
     final List<RobotInfo> robots = new ArrayList<>();
     final java.util.Set<MapLocation> walls = new java.util.HashSet<>();
+    final java.util.Set<MapLocation> dirt = new java.util.HashSet<>();
+    final List<MapLocation> dug = new ArrayList<>();
     final int[] shared = new int[64];
     int cheese = 400;
     int round = 100;
@@ -184,6 +203,11 @@ public class BabyRatTest {
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
         case "getDirection": return Direction.NORTH;
+        case "canRemoveDirt": return dirt.contains((MapLocation) args[0]);
+        case "removeDirt":
+          assertTrue("Only dirt can be removed", dirt.remove((MapLocation) args[0]));
+          dug.add((MapLocation) args[0]);
+          return null;
         case "getID": return 1;
         default: return defaultValue(method.getReturnType());
       }
@@ -221,8 +245,9 @@ public class BabyRatTest {
     }
 
     private MapInfo info(MapLocation location) {
-      boolean passable = !walls.contains(location);
-      return new MapInfo(location, passable, null, !passable, false, 0, TrapType.NONE, false);
+      boolean wall = walls.contains(location);
+      boolean isDirt = dirt.contains(location);
+      return new MapInfo(location, !wall && !isDirt, null, wall, isDirt, 0, TrapType.NONE, false);
     }
 
     private static Object defaultValue(Class<?> type) {
