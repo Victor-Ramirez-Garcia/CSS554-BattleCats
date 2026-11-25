@@ -20,6 +20,15 @@ public class BabyRat {
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
   private static final int RETURN_CHEESE_THRESHOLD = 20;
+  // Experiment: three more bites kill a Baby Rat at this health.
+  private static final int RETREAT_HEALTH = 30;
+  // Engine rule: at round 2000 the winner is scored on shares of cat damage, living Rat Kings
+  // and delivered cheese, and after round 1200 a team may only add a king while it has fewer
+  // than two. Experiment: from round 1850 workers gather at the king so a second king forms
+  // before the end; 3mice promotes at 1950 and won every long game 2 kings to 1.
+  static final int LATE_PROMOTION_ROUND = 1850;
+  // Engine rule: matches end after round 2000.
+  private static final int LAST_ROUND = 2000;
   private final Navigation navigation;
   private final Construction construction = new Construction();
   private final CatTactics catTactics = new CatTactics();
@@ -37,6 +46,8 @@ public class BabyRat {
   private Direction visionDirection;
   private int visionRound;
   private int visionActionCooldown;
+  // Health at the end of our previous turn; a drop with no enemy in view means an attacker behind.
+  private int healthLastTurn = -1;
 
   //PUBLIC METHODS
   public BabyRat(int robotId) {
@@ -52,6 +63,7 @@ public class BabyRat {
     currentRobots = null;
     rememberKing(rc);
     RobotInfo[] observations = visibleRobots(rc);
+    observations = lookForUnseenAttacker(rc, observations);
 
     if (tryBecomeRatKing(rc)) {
       return;
@@ -85,6 +97,25 @@ public class BabyRat {
     // Immediate pickups and food trips still take priority; only empty workers may approach.
     //don't interrupt if we're currently attacking
     if (!scanningForHome && catTactics.engage(rc, observations)) {
+      return;
+    }
+    // Late in the game, gather at the king so seven workers can share a 3x3 and promote.
+    // Rally only when a promotion can succeed: the bank pays for it, no second king is alive
+    // (the engine refuses a third after round 1200) and the king found a passable square.
+    if (!returning && isLatePromotionWindow(rc) && !KingSignal.latePromotionRecorded(rc)
+        && lateKingAffordable(rc) && !KingSignal.secondKingAlive(rc)) {
+      MapLocation rally = KingSignal.readRally(rc);
+      if (rally != null) {
+        if (!tryBiteEnemyRat(rc, observations)) {
+          CatTactics.tryBite(rc, observations);
+        }
+        navigation.moveToward(rc, rally);
+        rc.setIndicatorString("RALLY for late king at " + rally);
+        return;
+      }
+    }
+    // After a betrayal, empty workers close on enemy rats together instead of collecting past them.
+    if (!scanningForHome && !returning && !pickedUp && engageEnemyRats(rc, observations)) {
       return;
     }
     //if we have an objective (kingLovation, cheese, others to be added?), face the objective
@@ -122,7 +153,9 @@ public class BabyRat {
     }
     construction.tryBuild(rc, kingLocation, buildObjective, observations);
     //ATTACK!!! KILL!!!
-    CatTactics.tryBite(rc, observations);
+    if (!tryBiteEnemyRat(rc, observations)) {
+      CatTactics.tryBite(rc, observations);
+    }
     //RUN AWAY!!!
     if (CatTactics.retreat(rc, observations, objective)) {
       return;
@@ -161,7 +194,9 @@ public class BabyRat {
       return;
     }
     //after movement, if we don't have cheese, ATTACK!!!
-    CatTactics.tryBite(rc, afterMovement);
+    if (!tryBiteEnemyRat(rc, afterMovement)) {
+      CatTactics.tryBite(rc, afterMovement);
+    }
   }
 
   /////////////////////////////////
@@ -181,6 +216,9 @@ public class BabyRat {
    * the income check starved every king on minimaze and safelycontained, even when capped at one.
    */
   private boolean tryBecomeRatKing(RobotController rc) throws GameActionException {
+    if (isLatePromotionWindow(rc)) {
+      return tryLatePromotion(rc);
+    }
     if (rc.getRoundNum() > GameConstants.RAT_KING_CUTOFF_ROUND
         || !FoodBudget.canSpend(rc.getGlobalCheese(), GameConstants.RAT_KING_UPGRADE_CHEESE_COST)
         || KingSignal.promotionRecorded(rc)
@@ -190,6 +228,30 @@ public class BabyRat {
     }
     rc.becomeRatKing();
     KingSignal.recordPromotion(rc);
+    return true;
+  }
+
+  private static boolean isLatePromotionWindow(RobotController rc) {
+    return rc.getRoundNum() >= LATE_PROMOTION_ROUND;
+  }
+
+  /** The bank covers the upgrade and two kings' upkeep until the last round. */
+  private static boolean lateKingAffordable(RobotController rc) {
+    int upkeepToEnd = 2 * GameConstants.RAT_KING_CHEESE_CONSUMPTION
+        * (LAST_ROUND - rc.getRoundNum());
+    return rc.getGlobalCheese() >= GameConstants.RAT_KING_UPGRADE_CHEESE_COST + upkeepToEnd;
+  }
+
+  /**
+   * Promotes regardless of the income signal and the one-per-game policy; the engine refuses
+   * once we already have two kings. The bank must still feed two kings until the last round.
+   */
+  private boolean tryLatePromotion(RobotController rc) throws GameActionException {
+    if (!lateKingAffordable(rc) || !rc.canBecomeRatKing()) {
+      return false;
+    }
+    rc.becomeRatKing();
+    KingSignal.recordLatePromotion(rc);
     return true;
   }
 
@@ -320,6 +382,131 @@ public class BabyRat {
       cheeseTarget = closest;
       targetRound = rc.getRoundNum();
     }
+  }
+
+  /**
+   * After cooperation, turns around when we lost health since our last turn but see no hostile
+   * robot, because a 90-degree vision cone hides attackers behind us. A visible cat or enemy
+   * explains the damage, so we keep facing it. Returns the fresh view.
+   */
+  private RobotInfo[] lookForUnseenAttacker(RobotController rc, RobotInfo[] observations)
+      throws GameActionException {
+    int health = rc.getHealth();
+    boolean hurt = healthLastTurn >= 0 && health < healthLastTurn;
+    healthLastTurn = health;
+    if (!hurt || rc.isCooperation() || !rc.canTurn()) {
+      return observations;
+    }
+    Team us = rc.getTeam();
+    for (RobotInfo robot : observations) {
+      if (robot.getTeam() != us) {
+        return observations;
+      }
+    }
+    rc.turn(rc.getDirection().opposite());
+    return visibleRobots(rc);
+  }
+
+  /**
+   * Moves toward the nearest visible enemy rat and bites, when we are not outnumbered in sight.
+   * Experiment: counting only visible robots keeps this cheap; a lone worker that meets a group
+   * keeps collecting instead of feeding the enemy one rat at a time.
+   */
+  private boolean engageEnemyRats(RobotController rc, RobotInfo[] robots)
+      throws GameActionException {
+    if (rc.isCooperation()) {
+      return false;
+    }
+    Team us = rc.getTeam();
+    MapLocation here = rc.getLocation();
+    MapLocation nearest = null;
+    int nearestDistance = Integer.MAX_VALUE;
+    int allies = 1;
+    int enemies = 0;
+    for (RobotInfo robot : robots) {
+      UnitType type = robot.getType();
+      if (type != UnitType.BABY_RAT && type != UnitType.RAT_KING) {
+        continue;
+      }
+      if (robot.getTeam() == us) {
+        allies++;
+        continue;
+      }
+      enemies++;
+      int distance = here.distanceSquaredTo(robot.getLocation());
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = robot.getLocation();
+      }
+    }
+    if (nearest == null) {
+      return false;
+    }
+    // Experiment: outnumbered or badly hurt workers fall back to the king, which now bites
+    // enemy rats, instead of dying alone at a mine.
+    if ((allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null) {
+      tryBiteEnemyRat(rc, robots);
+      navigation.moveToward(rc, kingLocation);
+      rc.setIndicatorString("FALL BACK allies=" + allies + " enemies=" + enemies);
+      return true;
+    }
+    if (allies < enemies) {
+      return false;
+    }
+    boolean bit = tryBiteEnemyRat(rc, robots);
+    navigation.moveToward(rc, nearest);
+    if (!bit) {
+      tryBiteEnemyRat(rc, visibleRobots(rc));
+    }
+    rc.setIndicatorString("FIGHT allies=" + allies + " enemies=" + enemies);
+    return true;
+  }
+
+  /**
+   * After cooperation ends, bites the weakest enemy rat in reach. Engine rule: biting an enemy
+   * during cooperation is a backstab, so this never starts PvP. Without it our workers took
+   * 360-440 bites from 3mice and killed none of its rats.
+   */
+  private boolean tryBiteEnemyRat(RobotController rc, RobotInfo[] robots)
+      throws GameActionException {
+    if (rc.isCooperation() || !rc.isActionReady()) {
+      return false;
+    }
+    Team enemy = rc.getTeam().opponent();
+    MapLocation target = null;
+    int weakest = Integer.MAX_VALUE;
+    MapLocation here = rc.getLocation();
+    for (RobotInfo robot : robots) {
+      if (robot.getTeam() != enemy || robot.getHealth() >= weakest) {
+        continue;
+      }
+      UnitType type = robot.getType();
+      if (type != UnitType.BABY_RAT && type != UnitType.RAT_KING) {
+        continue;
+      }
+      // A king covers a 3x3; any adjacent part can be bitten.
+      for (MapLocation part : type.getAllTypeLocations(robot.getLocation())) {
+        if (here.distanceSquaredTo(part) <= GameConstants.ATTACK_DISTANCE_SQUARED
+            && !here.equals(part)) {
+          target = part;
+          weakest = robot.getHealth();
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      return false;
+    }
+    // Engine rule: a rat can bite only a tile in its vision cone, so face the target first.
+    if (!rc.canAttack(target) && rc.canTurn()) {
+      rc.turn(here.directionTo(target));
+    }
+    if (!rc.canAttack(target)) {
+      return false;
+    }
+    rc.attack(target);
+    rc.setIndicatorString("BITE_RAT at " + target);
+    return true;
   }
 
   //function for picking up a cheeseTarget that we're right next to 

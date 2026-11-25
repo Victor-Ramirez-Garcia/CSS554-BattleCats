@@ -137,6 +137,162 @@ public class BabyRatTest {
     assertEquals(List.of(blocked), world.dug);
   }
 
+  @Test
+  public void bitesAnAdjacentEnemyRatOnlyAfterCooperationAndFacesItFirst() throws Exception {
+    // SPEC: Biting an enemy during cooperation is a backstab; after it, workers fight back.
+    // VALUE: The worker bites only outside cooperation, turning toward an enemy behind it when
+    // it can, and never bites when it cannot face the target.
+    MapLocation ahead = CENTER.add(Direction.NORTH);
+    MapLocation behind = CENTER.add(Direction.SOUTH);
+    Object[][] cases = {
+      {"cooperation", true, true, ahead, null},
+      {"enemy ahead", false, false, ahead, ahead},
+      {"enemy behind, can turn", false, true, behind, behind},
+      {"enemy behind, cannot turn", false, false, behind, null},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.cooperation = (boolean) c[1];
+      world.turnable = (boolean) c[2];
+      world.robots.add(robot(UnitType.BABY_RAT, Team.B, (MapLocation) c[3]));
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      MapLocation expected = (MapLocation) c[4];
+      assertEquals((String) c[0], expected == null ? List.of() : List.of(expected), world.bites);
+    }
+  }
+
+  @Test
+  public void fightsWhenNotOutnumberedAndFallsBackToTheKingOtherwise() throws Exception {
+    // SPEC: After a betrayal, empty workers fight when visible allies match visible enemies, and
+    // fall back toward the king when outnumbered or at 30 health or less.
+    // VALUE: The chosen behaviour shows in the indicator; without a known king an outnumbered
+    // worker keeps working, and nothing changes during cooperation.
+    Object[][] cases = {
+      {"one enemy, alone", 1, 0, 100, true, "FIGHT"},
+      {"three enemies, alone", 3, 0, 100, true, "FALL BACK"},
+      {"three enemies, two allies", 3, 2, 100, true, "FIGHT"},
+      {"one enemy, badly hurt", 1, 0, 30, true, "FALL BACK"},
+      {"one enemy, just above the fall-back health", 1, 0, 31, true, "FIGHT"},
+      {"one enemy, badly hurt, still scanning for home", 1, 0, 30, false, null},
+      {"three enemies, no king known", 3, 0, 100, false, null},
+      {"cooperation", 1, 0, 100, true, null},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.cooperation = c[0].equals("cooperation");
+      world.health = (int) c[3];
+      if ((boolean) c[4]) {
+        world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      }
+      for (int i = 0; i < (int) c[1]; i++) {
+        world.robots.add(robot(UnitType.BABY_RAT, Team.B, new MapLocation(9 + i, 14)));
+      }
+      for (int i = 0; i < (int) c[2]; i++) {
+        world.robots.add(robot(UnitType.BABY_RAT, Team.A, new MapLocation(9 + i, 12)));
+      }
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      String chosen = world.indicators.stream()
+          .filter(text -> text.startsWith("FIGHT") || text.startsWith("FALL BACK"))
+          .map(text -> text.startsWith("FIGHT") ? "FIGHT" : "FALL BACK")
+          .findFirst().orElse(null);
+      assertEquals((String) c[0], c[5], chosen);
+    }
+  }
+
+  @Test
+  public void turnsAroundOnlyWhenHurtByAnAttackerItCannotSee() throws Exception {
+    // SPEC: A 90-degree cone hides attackers behind us; a visible cat or enemy explains damage.
+    // VALUE: Hurt with nothing hostile in view, the worker turns to face the other way;
+    // otherwise it keeps its facing. Movement is not ready, so nothing else turns it.
+    Object[][] cases = {
+      {"hurt, nothing hostile in view", false, false, 90, Direction.SOUTH},
+      {"not hurt", false, false, 100, Direction.NORTH},
+      {"hurt during cooperation", true, false, 90, Direction.NORTH},
+      {"hurt with a cat in view", false, true, 90, Direction.NORTH},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.round = 101;
+      world.turnable = true;
+      world.cooperation = (boolean) c[1];
+      world.robots.add(robot(UnitType.RAT_KING, Team.A, new MapLocation(20, 20)));
+      if ((boolean) c[2]) {
+        world.robots.add(robot(UnitType.CAT, Team.NEUTRAL, new MapLocation(10, 18)));
+      }
+      BabyRat rat = new BabyRat(1);
+      rat.takeTurn(world.rc);
+      world.facing = Direction.NORTH;
+      world.health = (int) c[3];
+
+      rat.takeTurn(world.rc);
+
+      assertEquals((String) c[0], c[4], world.facing);
+    }
+  }
+
+  @Test
+  public void latePromotionIgnoresIncomeAndTheOnePerGameLimitButKeepsUpkeep() throws Exception {
+    // SPEC: From round 1850 a second king is worth points; the engine still caps kings at two.
+    // VALUE: With an earlier promotion recorded and no income report, a rat still promotes if
+    // the bank covers the upgrade plus two kings' upkeep to round 2000.
+    Object[][] cases = {
+      {"round 1849 uses the early policy", 1849, 2000, 0},
+      {"round 1900, upkeep covered", 1900, 50 + 4 * 100, 1},
+      {"round 1900, one short", 1900, 50 + 4 * 100 - 1, 0},
+      {"round 1990, small bank", 1990, 50 + 4 * 10, 1},
+    };
+    for (Object[] c : cases) {
+      World world = validWorld();
+      world.shared[3] = 1; // an earlier promotion
+      world.shared[4] = 0; // no income report
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      assertEquals((String) c[0], (int) c[3], world.upgrades);
+      if (world.upgrades == 1) {
+        assertEquals((String) c[0], 2, world.shared[3]);
+      }
+    }
+  }
+
+  @Test
+  public void workersRallyOnlyWhenALateKingCanForm() throws Exception {
+    // SPEC: From round 1850 workers gather at the king's published square to form a second king.
+    // VALUE: They gather only when the bank pays for it, no second king is alive and a square is
+    // published; otherwise they keep collecting, as the engine would refuse the promotion.
+    int funded = 50 + 4 * 100;
+    Object[][] cases = {
+      {"all conditions met", 1900, funded, true, false, true},
+      {"before the window", 1849, funded, true, false, false},
+      {"bank one short", 1900, funded - 1, true, false, false},
+      {"no square published", 1900, funded, false, false, false},
+      {"second king alive", 1900, funded, true, true, false},
+    };
+    for (Object[] c : cases) {
+      World world = new World();
+      world.round = (int) c[1];
+      world.cheese = (int) c[2];
+      if ((boolean) c[3]) {
+        world.shared[5] = CENTER.x + 4;
+        world.shared[6] = CENTER.y + 1;
+      }
+      if ((boolean) c[4]) {
+        world.shared[7] = world.round / 2 + 1;
+      }
+
+      new BabyRat(1).takeTurn(world.rc);
+
+      boolean rallied = world.indicators.stream().anyMatch(text -> text.startsWith("RALLY"));
+      assertEquals((String) c[0], (boolean) c[5], rallied);
+    }
+  }
+
   private static World validWorld() {
     World world = new World();
     world.fundPromotionAt(world.round);
@@ -165,6 +321,12 @@ public class BabyRatTest {
     int cheese = 400;
     int round = 100;
     int upgrades;
+    boolean cooperation;
+    boolean turnable;
+    Direction facing = Direction.NORTH;
+    final List<MapLocation> bites = new ArrayList<>();
+    final List<String> indicators = new ArrayList<>();
+    int health = 100;
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -185,8 +347,15 @@ public class BabyRatTest {
         case "getGlobalCheese": return cheese;
         case "getAllCheese": return cheese;
         case "isBeingCarried":
-        case "isBeingThrown":
-        case "canTurn": return false;
+        case "isBeingThrown": return false;
+        case "canTurn": return turnable;
+        case "isCooperation": return cooperation;
+        case "turn": facing = (Direction) args[0]; return null;
+        case "canAttack": return canBite((MapLocation) args[0]);
+        case "attack":
+          assertTrue("Bite must be legal", canBite((MapLocation) args[0]));
+          bites.add((MapLocation) args[0]);
+          return null;
         case "isActionReady": return true;
         case "getActionCooldownTurns": return 0;
         case "senseNearbyRobots": return robots.toArray(new RobotInfo[0]);
@@ -202,7 +371,9 @@ public class BabyRatTest {
           upgrades++;
           cheese -= GameConstants.RAT_KING_UPGRADE_CHEESE_COST;
           return null;
-        case "getDirection": return Direction.NORTH;
+        case "getDirection": return facing;
+        case "getHealth": return health;
+        case "setIndicatorString": indicators.add((String) args[0]); return null;
         case "canRemoveDirt": return dirt.contains((MapLocation) args[0]);
         case "removeDirt":
           assertTrue("Only dirt can be removed", dirt.remove((MapLocation) args[0]));
@@ -217,6 +388,13 @@ public class BabyRatTest {
     /** Writes the king's income report as KingSignal stamps it on the given round. */
     void fundPromotionAt(int reportRound) {
       shared[4] = reportRound / 2 + 1;
+    }
+
+    /** Engine rule for this fixture: adjacent, and inside the 90-degree cone we face. */
+    private boolean canBite(MapLocation target) {
+      Direction toward = CENTER.directionTo(target);
+      return CENTER.distanceSquaredTo(target) <= 2 && !CENTER.equals(target)
+          && (toward == facing || toward == facing.rotateLeft() || toward == facing.rotateRight());
     }
 
     private boolean engineAllowsUpgrade() {
