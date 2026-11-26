@@ -49,6 +49,7 @@ public class BabyRat {
   private final Navigation navigation;
   private final Construction construction = new Construction();
   private final CatTactics catTactics = new CatTactics();
+  private final CombatMicro combatMicro = new CombatMicro();
   private final boolean fighter;
   private MapLocation kingLocation;
   private MapLocation cheeseTarget;
@@ -523,11 +524,27 @@ public class BabyRat {
       return false;
     }
     // Experiment: outnumbered or badly hurt workers fall back to the king, which now bites
-    // enemy rats, instead of dying alone at a mine.
-    if ((allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null) {
+    // enemy rats, instead of dying alone at a mine. They still take a bite the micro rates safe,
+    // and anyone falls back when the micro finds every approach threatened.
+    boolean retreat =
+        (allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null;
+    if (combatMicro.act(rc, robots, retreat)) {
+      if (combatMicro.biteTarget == null) {
+        // The micro handles rats only; after its move a king may now be in reach.
+        tryBiteEnemyRat(rc, visibleRobots(rc));
+      }
+      return true;
+    }
+    if ((retreat || combatMicro.declined) && kingLocation != null) {
       tryBiteEnemyRat(rc, robots);
       navigation.moveToward(rc, kingLocation);
       rc.setIndicatorString("FALL BACK allies=" + allies + " enemies=" + enemies);
+      return true;
+    }
+    if (combatMicro.declined) {
+      // No king to fall back to: hold rather than take the approach the micro rejected.
+      tryBiteEnemyRat(rc, robots);
+      rc.setIndicatorString("HOLD allies=" + allies + " enemies=" + enemies);
       return true;
     }
     if (allies < enemies) {
