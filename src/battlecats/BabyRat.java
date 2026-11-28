@@ -20,8 +20,25 @@ public class BabyRat {
   private static final int IGNORE_TARGET_ROUNDS = 40;
   // Experimental cargo target, not an engine limit: bank a full 20-cheese load too.
   private static final int RETURN_CHEESE_THRESHOLD = 20;
+  // Experiment: through round 250 opponents delivered about 36 cheese per trip and we delivered
+  // 21. A worker holding 20 to 39 cheese may keep collecting close, safe piles before going home.
+  // Untuned experimental cap, not an engine limit: about two 20-cheese piles per trip.
+  private static final int TOP_UP_CHEESE_LIMIT = 40;
+  // Untuned experiment: r^2 16 (four tiles) keeps each detour to a few moves from the worker.
+  private static final int TOP_UP_RANGE_SQUARED = 16;
+  // Experiment: bounds the whole detour, including several small piles or one that walls or other
+  // rats make unreachable.
+  private static final int TOP_UP_MAX_ROUNDS = 10;
   // Experiment: three more bites kill a Baby Rat at this health.
   private static final int RETREAT_HEALTH = 30;
+  // Experiment: on default maps 3mice kept 0-4 raiders just inside our half and most deaths on
+  // both sides happened there, while its other workers collected untouched. One worker in eight
+  // holds that band after cooperation ends instead of collecting.
+  private static final int FIGHTER_EVERY = 8;
+  // Experiment: the front lies three quarters of the way from our king to the map center, which
+  // on symmetric maps is about 37% of the way to the enemy king.
+  private static final int FRONT_NUMERATOR = 3;
+  private static final int FRONT_DENOMINATOR = 4;
   // Engine rule: at round 2000 the winner is scored on shares of cat damage, living Rat Kings
   // and delivered cheese, and after round 1200 a team may only add a king while it has fewer
   // than two. Experiment: from round 1850 workers gather at the king so a second king forms
@@ -32,6 +49,8 @@ public class BabyRat {
   private final Navigation navigation;
   private final Construction construction = new Construction();
   private final CatTactics catTactics = new CatTactics();
+  private final CombatMicro combatMicro = new CombatMicro();
+  private final boolean fighter;
   private MapLocation kingLocation;
   private MapLocation cheeseTarget;
   private int targetRound;
@@ -40,6 +59,7 @@ public class BabyRat {
   private int homeScans;
   private int deliveries;
   private boolean returningFood;
+  private int topUpStartRound = -1;
   // Only current visibility is cached here; observations retained for combat stay separate.
   private RobotInfo[] currentRobots;
   private MapLocation visionLocation;
@@ -51,7 +71,14 @@ public class BabyRat {
 
   //PUBLIC METHODS
   public BabyRat(int robotId) {
+    // Engine IDs are not sequential per team, so this gives about one fighter in eight, not
+    // exactly; with 16 workers roughly one game in eight has no fighter at all.
+    this(robotId, robotId % FIGHTER_EVERY == FIGHTER_EVERY - 1);
+  }
+
+  BabyRat(int robotId, boolean fighter) {
     navigation = new Navigation(robotId);
+    this.fighter = fighter;
   }
 
   public void takeTurn(RobotController rc) throws GameActionException {
@@ -76,9 +103,10 @@ public class BabyRat {
 
     //if we know where a king is but don't have enough cheese to return
     //then the BR should find cheese
-    boolean returning = rc.getRawCheese() >= RETURN_CHEESE_THRESHOLD;
+    boolean toppingUp = shouldTopUp(rc, observations);
+    boolean returning = rc.getRawCheese() >= RETURN_CHEESE_THRESHOLD && !toppingUp;
     boolean scanningForHome = kingLocation == null && homeScans < 4;
-    if (!returning && !scanningForHome) {
+    if (!returning && !scanningForHome && !toppingUp) {
       findCheese(rc);
     }
 
@@ -102,7 +130,8 @@ public class BabyRat {
     // Late in the game, gather at the king so seven workers can share a 3x3 and promote.
     // Rally only when a promotion can succeed: the bank pays for it, no second king is alive
     // (the engine refuses a third after round 1200) and the king found a passable square.
-    if (!returning && isLatePromotionWindow(rc) && !KingSignal.latePromotionRecorded(rc)
+    if (!returning && !toppingUp && isLatePromotionWindow(rc)
+        && !KingSignal.latePromotionRecorded(rc)
         && lateKingAffordable(rc) && !KingSignal.secondKingAlive(rc)) {
       MapLocation rally = KingSignal.readRally(rc);
       if (rally != null) {
@@ -116,6 +145,10 @@ public class BabyRat {
     }
     // After a betrayal, empty workers close on enemy rats together instead of collecting past them.
     if (!scanningForHome && !returning && !pickedUp && engageEnemyRats(rc, observations)) {
+      return;
+    }
+    if (fighter && !scanningForHome && !returning && !rc.isCooperation()
+        && holdFront(rc, observations)) {
       return;
     }
     //if we have an objective (kingLovation, cheese, others to be added?), face the objective
@@ -342,6 +375,54 @@ public class BabyRat {
     return currentRobots;
   }
 
+  /**
+   * Returns whether a loaded worker should detour to a close pile before going home. It may take
+   * several piles while it holds 20 to 39 cheese, for at most TOP_UP_MAX_ROUNDS in total. It never
+   * delays cargo when food is low, the king is unknown, or a cat or enemy is in view.
+   */
+  private boolean shouldTopUp(RobotController rc, RobotInfo[] robots) throws GameActionException {
+    int cargo = rc.getRawCheese();
+    if (cargo < RETURN_CHEESE_THRESHOLD || cargo >= TOP_UP_CHEESE_LIMIT) {
+      topUpStartRound = -1;
+      return false;
+    }
+    int round = rc.getRoundNum();
+    if (topUpStartRound < 0) {
+      topUpStartRound = round;
+    }
+    // A worker already in transfer range banks its load instead of walking away from the king.
+    if (round - topUpStartRound >= TOP_UP_MAX_ROUNDS || kingLocation == null
+        || kingInTransferRange(rc)
+        || FoodBudget.needsDelivery(rc.getGlobalCheese())) {
+      cheeseTarget = null;
+      return false;
+    }
+    Team us = rc.getTeam();
+    for (RobotInfo robot : robots) {
+      if (robot.getTeam() != us) {
+        cheeseTarget = null;
+        return false;
+      }
+    }
+    findCheese(rc);
+    if (cheeseTarget == null
+        || rc.getLocation().distanceSquaredTo(cheeseTarget) > TOP_UP_RANGE_SQUARED) {
+      cheeseTarget = null;
+      return false;
+    }
+    return true;
+  }
+
+  private boolean kingInTransferRange(RobotController rc) {
+    MapLocation here = rc.getLocation();
+    for (MapLocation part : UnitType.RAT_KING.getAllTypeLocations(kingLocation)) {
+      if (here.distanceSquaredTo(part) <= GameConstants.CHEESE_TRANSFER_RADIUS_SQUARED) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private void findCheese(RobotController rc) throws GameActionException {
 
     //if we have a cheese target and it's late in the game, ignore that cheese until later
@@ -443,11 +524,27 @@ public class BabyRat {
       return false;
     }
     // Experiment: outnumbered or badly hurt workers fall back to the king, which now bites
-    // enemy rats, instead of dying alone at a mine.
-    if ((allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null) {
+    // enemy rats, instead of dying alone at a mine. They still take a bite the micro rates safe,
+    // and anyone falls back when the micro finds every approach threatened.
+    boolean retreat =
+        (allies < enemies || rc.getHealth() <= RETREAT_HEALTH) && kingLocation != null;
+    if (combatMicro.act(rc, robots, retreat)) {
+      if (combatMicro.biteTarget == null) {
+        // The micro handles rats only; after its move a king may now be in reach.
+        tryBiteEnemyRat(rc, visibleRobots(rc));
+      }
+      return true;
+    }
+    if ((retreat || combatMicro.declined) && kingLocation != null) {
       tryBiteEnemyRat(rc, robots);
       navigation.moveToward(rc, kingLocation);
       rc.setIndicatorString("FALL BACK allies=" + allies + " enemies=" + enemies);
+      return true;
+    }
+    if (combatMicro.declined) {
+      // No king to fall back to: hold rather than take the approach the micro rejected.
+      tryBiteEnemyRat(rc, robots);
+      rc.setIndicatorString("HOLD allies=" + allies + " enemies=" + enemies);
       return true;
     }
     if (allies < enemies) {
@@ -460,6 +557,41 @@ public class BabyRat {
     }
     rc.setIndicatorString("FIGHT allies=" + allies + " enemies=" + enemies);
     return true;
+  }
+
+  /**
+   * Moves a fighter with no enemy in view toward the front and keeps looking around there.
+   * Visible enemies are handled earlier by engageEnemyRats, which fights or falls back. A cat
+   * that catTactics declined to engage still gets the same evasion a collector would use.
+   * If the front tile is a wall the fighter waits beside it; that case is not handled.
+   */
+  private boolean holdFront(RobotController rc, RobotInfo[] robots) throws GameActionException {
+    if (kingLocation == null) {
+      return false;
+    }
+    MapLocation front = frontLocation(kingLocation, rc.getMapWidth(), rc.getMapHeight());
+    if (!tryBiteEnemyRat(rc, robots)) {
+      CatTactics.tryBite(rc, robots);
+    }
+    if (CatTactics.retreat(rc, robots, front)) {
+      return true;
+    }
+    if (rc.getLocation().distanceSquaredTo(front) > 2) {
+      navigation.moveToward(rc, front);
+    } else if (rc.canTurn()) {
+      // A 90-degree view sees little of the band; sweep it while waiting.
+      rc.turn(rc.getDirection().rotateRight().rotateRight());
+    }
+    rc.setIndicatorString("FRONT at " + front);
+    return true;
+  }
+
+  static MapLocation frontLocation(MapLocation king, int mapWidth, int mapHeight) {
+    int centerX = mapWidth / 2;
+    int centerY = mapHeight / 2;
+    return new MapLocation(
+        king.x + (centerX - king.x) * FRONT_NUMERATOR / FRONT_DENOMINATOR,
+        king.y + (centerY - king.y) * FRONT_NUMERATOR / FRONT_DENOMINATOR);
   }
 
   /**
